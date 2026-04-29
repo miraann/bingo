@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "UniSalar";
+  src: url("/font/UniSalar_F_007.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+html, body {
+  background: #ffffff;
+  overflow-x: hidden;
+  font-family: "UniSalar", sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #c4c4c4; border-radius: 3px; }
+
+/* Smooth transitions on cells */
+.bingo-cell {
+  transition: background-color 0.35s ease, color 0.35s ease,
+    box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+/* Pulse glow for the current number */
+@keyframes circlePulse {
+  0%, 100% { box-shadow: 0 0 40px 10px rgba(220, 38, 38, 0.45); }
+  50%       { box-shadow: 0 0 70px 20px rgba(220, 38, 38, 0.65); }
+}
+.circle-glow {
+  animation: circlePulse 2.5s ease-in-out infinite;
+}
