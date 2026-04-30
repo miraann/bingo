@@ -8,6 +8,7 @@ import {
   Play, Pause,
   RotateCcw,
   Timer,
+  Printer,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -23,6 +24,23 @@ const GROUPS = [
 ] as const;
 
 const TIMER_PRESETS = [10, 15, 30] as const;
+
+function generateBingoCard(): (number | string)[][] {
+  const ranges = [[1,15],[16,30],[31,45],[46,60],[61,75]];
+  const columns = ranges.map(([min, max]) => {
+    const pool: number[] = [];
+    while (pool.length < 5) {
+      const n = Math.floor(Math.random() * (max - min + 1)) + min;
+      if (!pool.includes(n)) pool.push(n);
+    }
+    return pool;
+  });
+  const grid: (number | string)[][] = Array.from({length: 5}, (_, r) =>
+    Array.from({length: 5}, (_, c) => columns[c][r])
+  );
+  grid[2][2] = "FREE";
+  return grid;
+}
 
 function groupOf(n: number) {
   return GROUPS[Math.min(Math.floor((n - 1) / 15), 4)];
@@ -83,6 +101,7 @@ export default function BingoDashboard() {
   const [busy,         setBusy]         = useState(false);
   const [autoInterval, setAutoInterval] = useState(10);
   const [customInput,  setCustomInput]  = useState("10");
+  const [isPrinting,   setIsPrinting]   = useState(false);
 
   /* ── Refs ──────────────────────────────────────────────────────────────── */
   const bgMusicRef   = useRef<HTMLAudioElement | null>(null);
@@ -182,6 +201,78 @@ export default function BingoDashboard() {
     setBusy(false);
   };
 
+  /* ── PDF Generator ────────────────────────────────────────────────────── */
+  const generatePDF = async () => {
+    setIsPrinting(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+      const LETTERS = ["B","I","N","G","O"];
+      const pageW = 215.9, pageH = 279.4;
+      const mX = 8, mY = 10, gap = 5;
+      const cardW = (pageW - 2*mX - gap) / 2;
+      const cardH = (pageH - 2*mY - gap) / 2;
+      const headerH = 13;
+      const cellW = cardW / 5;
+      const cellH = (cardH - headerH) / 5;
+
+      for (let page = 0; page < 50; page++) {
+        if (page > 0) doc.addPage();
+        for (let ci = 0; ci < 4; ci++) {
+          const x0 = mX + (ci % 2) * (cardW + gap);
+          const y0 = mY + Math.floor(ci / 2) * (cardH + gap);
+          const grid = generateBingoCard();
+
+          // Header
+          for (let c = 0; c < 5; c++) {
+            const hx = x0 + c * cellW;
+            doc.setFillColor(0, 0, 0);
+            doc.rect(hx, y0, cellW, headerH, "F");
+            if (c > 0) {
+              doc.setDrawColor(255,255,255); doc.setLineWidth(0.3);
+              doc.line(hx, y0, hx, y0 + headerH);
+            }
+            doc.setTextColor(255,255,255);
+            doc.setFontSize(15); doc.setFont("helvetica","bold");
+            doc.text(LETTERS[c], hx + cellW/2, y0 + headerH/2,
+              { align:"center", baseline:"middle" } as Parameters<typeof doc.text>[3]);
+          }
+
+          // Cells
+          for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 5; c++) {
+              const cx = x0 + c * cellW;
+              const cy = y0 + headerH + r * cellH;
+              const val = grid[r][c];
+              if (val === "FREE") {
+                doc.setFillColor(220,220,220);
+                doc.rect(cx, cy, cellW, cellH, "F");
+                doc.setFontSize(9); doc.setFont("helvetica","bold");
+                doc.setTextColor(60,60,60);
+                doc.text("FREE", cx + cellW/2, cy + cellH/2,
+                  { align:"center", baseline:"middle" } as Parameters<typeof doc.text>[3]);
+              } else {
+                doc.setFontSize(17); doc.setFont("helvetica","bold");
+                doc.setTextColor(0,0,0);
+                doc.text(String(val), cx + cellW/2, cy + cellH/2,
+                  { align:"center", baseline:"middle" } as Parameters<typeof doc.text>[3]);
+              }
+              doc.setDrawColor(180,180,180); doc.setLineWidth(0.25);
+              doc.rect(cx, cy, cellW, cellH);
+            }
+          }
+
+          // Card border
+          doc.setDrawColor(0,0,0); doc.setLineWidth(0.7);
+          doc.rect(x0, y0, cardW, cardH);
+        }
+      }
+      doc.save("bingo-cards-200.pdf");
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
   const selectPreset    = (s: number) => { setAutoInterval(s); setCustomInput(String(s)); };
   const handleCustomInput = (raw: string) => {
     setCustomInput(raw);
@@ -242,6 +333,27 @@ export default function BingoDashboard() {
               `}
             >
               ڕاکێشانی تۆپ
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.93 }}
+              onClick={generatePDF}
+              disabled={isPrinting}
+              title="پرینت کردنی کارتەکان"
+              className={`
+                flex items-center gap-1.5 flex-shrink-0
+                border-2 border-gray-200 bg-white text-gray-500 font-bold rounded-2xl
+                text-sm md:text-base
+                px-3 md:px-4 py-2.5 md:py-3.5
+                hover:border-purple-300 hover:text-purple-600
+                transition-all duration-200
+                ${isPrinting ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+              `}
+            >
+              <Printer size={16} strokeWidth={2} />
+              <span className="hidden sm:inline text-xs md:text-sm">
+                {isPrinting ? "..." : "پرینت"}
+              </span>
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.12, rotate: -35 }}
