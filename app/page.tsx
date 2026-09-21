@@ -98,6 +98,7 @@ export default function BingoDashboard() {
   const [customInput,  setCustomInput]  = useState("10");
   const [isPrinting,   setIsPrinting]   = useState(false);
   const [activeAnnouncement, setActiveAnnouncement] = useState<BingoResultPayload | null>(null);
+  const [showPlayers,  setShowPlayers]  = useState(false);
 
   /* ── Refs ──────────────────────────────────────────────────────────────── */
   const bgMusicRef   = useRef<HTMLAudioElement | null>(null);
@@ -396,6 +397,49 @@ export default function BingoDashboard() {
 
         {/* ── DRAW PANEL ── */}
         <div className="order-2 md:order-1 flex flex-col items-center gap-2 w-full md:w-auto">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowPlayers(v => !v)}
+              className="flex items-center gap-2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+            >
+              <Users size={16} strokeWidth={2.5} />
+              <span className="text-base font-bold">{players.length}</span>
+              <div className="flex items-center gap-2 text-sm font-bold">
+                <span className={`w-2.5 h-2.5 rounded-full ${connected ? "bg-green-500" : "bg-gray-300"}`} />
+                {connected ? "پەیوەستە" : "چاوەڕوانی پەیوەستبوون..."}
+              </div>
+            </button>
+
+            <AnimatePresence>
+              {showPlayers && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-30 bg-white border border-gray-200 rounded-2xl shadow-xl p-3 w-56 max-h-64 overflow-y-auto"
+                >
+                  {players.length === 0 ? (
+                    <p className="text-xs text-gray-300 text-center py-2">هیچ یاریزانێک نییە</p>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {players.map(p => (
+                        <div
+                          key={p.playerId}
+                          className="flex items-center gap-2 bg-gray-50 rounded-xl px-2.5 py-1.5"
+                        >
+                          <span className="text-lg leading-none">{p.emoji}</span>
+                          <span className="text-sm font-bold text-gray-700">{p.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <div className="flex items-center gap-2">
             <motion.button
               whileHover={{ scale: 1.04 }}
@@ -563,12 +607,6 @@ export default function BingoDashboard() {
 
         {/* ── BALL ── */}
         <div className="order-1 md:order-2 flex flex-col items-center gap-2 flex-shrink-0">
-          <div className="flex items-center gap-1.5 text-gray-400">
-            <Users size={12} strokeWidth={2.5} />
-            <span className="text-xs font-bold">{players.length}</span>
-            {ConnectionBadge}
-          </div>
-
           <div className="relative">
             {/* Breathing glow */}
             <motion.div
