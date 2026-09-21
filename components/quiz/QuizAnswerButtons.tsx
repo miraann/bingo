@@ -34,6 +34,14 @@ export function QuizAnswerButtons({
         const isWrongSelected = revealed && isSelected && i !== correctAnswer;
         const interactive = !disabled && !!onSelect;
 
+        const borderClass = isCorrect
+          ? "border-green-400"
+          : isWrongSelected
+          ? "border-red-500"
+          : isSelected && !revealed
+          ? "border-orange-400"
+          : "border-transparent";
+
         return (
           <motion.button
             key={i}
@@ -45,12 +53,11 @@ export function QuizAnswerButtons({
             className={`
               relative flex items-center justify-center gap-2
               rounded-2xl px-4 py-6 text-white font-black text-base sm:text-lg text-center
-              shadow-lg transition-all duration-200
+              shadow-lg transition-all duration-200 border-4
               ${color.bg} ${interactive ? `${color.hover} cursor-pointer` : ""}
               ${revealed && !isCorrect && !isWrongSelected ? "opacity-40" : ""}
-              ${isSelected && !revealed ? "ring-4 ring-white ring-offset-2 ring-offset-gray-100" : ""}
-              ${isCorrect ? "ring-4 ring-white ring-offset-2 ring-offset-gray-100 scale-[1.03]" : ""}
-              ${isWrongSelected ? "grayscale" : ""}
+              ${borderClass}
+              ${isCorrect ? "scale-[1.03]" : ""}
             `}
           >
             {isCorrect && <Check size={20} strokeWidth={3} />}

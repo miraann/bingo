@@ -58,6 +58,7 @@ function sampleQuestions(pool: QuizQuestion[], count: number): QuizQuestion[] {
 }
 
 const DEFAULT_QUESTION_COUNT = 10;
+const AUTO_ADVANCE_DELAY_MS = 4000;
 
 /** Drives the host side of a quiz round: owns the authoritative question set,
  *  broadcasts every question/reveal over the Supabase Realtime channel, and
@@ -100,6 +101,8 @@ export function useQuizHost(gameId: string) {
   const submissionsRef = useRef<Map<string, SubmitAnswerPayload>>(new Map());
   const scoresRef = useRef<Map<string, LeaderboardEntry>>(new Map(persisted.current.scores.map(s => [s.playerId, s])));
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nextQuestionRef = useRef<() => void>(() => {});
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
@@ -112,6 +115,13 @@ export function useQuizHost(gameId: string) {
     if (revealTimerRef.current) {
       clearTimeout(revealTimerRef.current);
       revealTimerRef.current = null;
+    }
+  }, []);
+
+  const clearAutoAdvanceTimer = useCallback(() => {
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
     }
   }, []);
 
@@ -153,7 +163,12 @@ export function useQuizHost(gameId: string) {
       event: QUIZ_EVENTS.answerReveal,
       payload: { correctAnswer: question.correctAnswer, leaderboard: board },
     });
-  }, [clearRevealTimer]);
+
+    // Auto-advance to the next question (or end the quiz) after a short cooldown,
+    // regardless of whether the reveal was triggered by the timer or the host.
+    clearAutoAdvanceTimer();
+    autoAdvanceTimerRef.current = setTimeout(() => nextQuestionRef.current(), AUTO_ADVANCE_DELAY_MS);
+  }, [clearRevealTimer, clearAutoAdvanceTimer]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -210,10 +225,11 @@ export function useQuizHost(gameId: string) {
 
     return () => {
       clearRevealTimer();
+      clearAutoAdvanceTimer();
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [gameId, clearRevealTimer]);
+  }, [gameId, clearRevealTimer, clearAutoAdvanceTimer]);
 
   const setTopic = useCallback((key: string) => {
     if (phaseRef.current !== "LOBBY") return;
@@ -280,22 +296,27 @@ export function useQuizHost(gameId: string) {
   /** Ends the quiz immediately, wherever it currently is (host-initiated "end game"). */
   const endQuiz = useCallback(() => {
     clearRevealTimer();
+    clearAutoAdvanceTimer();
     if (phaseRef.current === "LOBBY") return;
     setPhase("ENDED");
     channelRef.current?.send({ type: "broadcast", event: QUIZ_EVENTS.phaseChanged, payload: { phase: "ENDED" } });
-  }, [clearRevealTimer]);
+  }, [clearRevealTimer, clearAutoAdvanceTimer]);
 
   const nextQuestion = useCallback(() => {
+    clearAutoAdvanceTimer();
     const next = currentIndexRef.current + 1;
     if (next >= questionsRef.current.length) {
       endQuiz();
       return;
     }
     showQuestion(next);
-  }, [showQuestion, endQuiz]);
+  }, [showQuestion, endQuiz, clearAutoAdvanceTimer]);
+
+  nextQuestionRef.current = nextQuestion;
 
   const resetQuiz = useCallback(() => {
     clearRevealTimer();
+    clearAutoAdvanceTimer();
     submissionsRef.current = new Map();
     scoresRef.current = new Map();
     startedAtRef.current = null;

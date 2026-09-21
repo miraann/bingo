@@ -14,6 +14,7 @@ import { GameModeToggle, type HostMode } from "@/components/GameModeSelector";
 import { IconToggle } from "@/components/IconToggle";
 import { QuizAnswerButtons } from "@/components/quiz/QuizAnswerButtons";
 import { QuizLeaderboard } from "@/components/quiz/QuizLeaderboard";
+import { QuizWinnerModal } from "@/components/quiz/QuizWinnerModal";
 import { CountdownRing } from "@/components/quiz/CountdownRing";
 
 export function QuizHostDashboard({
@@ -213,19 +214,19 @@ export function QuizHostDashboard({
     return (
       <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8 overflow-y-auto">
         <h1 className="text-2xl md:text-3xl font-black text-gray-800">کویز تەواو بوو 🎉</h1>
-        <QuizLeaderboard leaderboard={leaderboard} />
-        <div className="flex items-center gap-4">
-          <motion.button
-            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
-            onClick={resetQuiz}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl px-8 py-3 shadow-lg cursor-pointer"
-          >
-            یاریی نوێ
-          </motion.button>
-        </div>
-        <button onClick={() => onModeChange("bingo")} className="text-xs text-gray-300 hover:text-gray-500 underline cursor-pointer">
-          گۆڕینی جۆری یاری
-        </button>
+        {leaderboard.length === 0 && (
+          <>
+            <p className="text-gray-400 text-sm">هیچ یاریزانێک بەشداری نەکرد</p>
+            <motion.button
+              whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+              onClick={resetQuiz}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl px-8 py-3 shadow-lg cursor-pointer"
+            >
+              یاریی نوێ
+            </motion.button>
+          </>
+        )}
+        <QuizWinnerModal leaderboard={leaderboard} onNewGame={resetQuiz} />
       </div>
     );
   }
