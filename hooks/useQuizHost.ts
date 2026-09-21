@@ -1,0 +1,322 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabaseClient";
+import { loadQuizQuestions, toPublicQuestion, type QuizQuestion } from "@/lib/quizLoader";
+import {
+  QUIZ_EVENTS,
+  quizChannelName,
+  type LeaderboardEntry,
+  type QuizPhase,
+  type QuizPlayerPresence,
+  type QuizStateSyncPayload,
+  type SubmitAnswerPayload,
+} from "@/lib/quizChannel";
+
+interface PersistedHostState {
+  phase: QuizPhase;
+  topicKey: string;
+  currentIndex: number;
+  scores: LeaderboardEntry[];
+}
+
+function storageKey(gameId: string) {
+  return `quiz:host:${gameId}`;
+}
+
+function loadPersisted(gameId: string): PersistedHostState | null {
+  if (typeof window === "undefined" || !gameId) return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey(gameId));
+    return raw ? (JSON.parse(raw) as PersistedHostState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function savePersisted(gameId: string, state: PersistedHostState) {
+  if (!gameId) return;
+  try {
+    window.localStorage.setItem(storageKey(gameId), JSON.stringify(state));
+  } catch {}
+}
+
+function computeLeaderboard(scores: Map<string, LeaderboardEntry>): LeaderboardEntry[] {
+  return Array.from(scores.values()).sort((a, b) => b.score - a.score);
+}
+
+/** Fisher-Yates shuffle, returns a random `count`-sized slice of the pool
+ *  so each game only plays a subset of a topic's questions, in random order. */
+function sampleQuestions(pool: QuizQuestion[], count: number): QuizQuestion[] {
+  const arr = pool.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.slice(0, count);
+}
+
+const DEFAULT_QUESTION_COUNT = 10;
+
+/** Drives the host side of a quiz round: owns the authoritative question set,
+ *  broadcasts every question/reveal over the Supabase Realtime channel, and
+ *  scores submitted answers against its own answer key + its own clock —
+ *  never trusting a player's claimed correctness or elapsed time. */
+export function useQuizHost(gameId: string) {
+  const persisted = useRef<PersistedHostState | null>(null);
+  if (persisted.current === null) {
+    const loaded = loadPersisted(gameId);
+    persisted.current = {
+      phase: loaded?.phase ?? "LOBBY",
+      topicKey: loaded?.topicKey ?? "",
+      currentIndex: loaded?.currentIndex ?? 0,
+      scores: loaded?.scores ?? [],
+    };
+  }
+
+  const [phase, setPhase] = useState<QuizPhase>(persisted.current.phase);
+  const [topicKey, setTopicKeyState] = useState(persisted.current.topicKey);
+  const [currentIndex, setCurrentIndex] = useState(persisted.current.currentIndex);
+  const [players, setPlayers] = useState<QuizPlayerPresence[]>([]);
+  const [connected, setConnected] = useState(false);
+  const [submittedCount, setSubmittedCount] = useState(0);
+  const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(persisted.current.scores);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [questionDurationSec, setQuestionDurationSec] = useState<number | null>(null);
+  const [questionCount, setQuestionCountState] = useState(DEFAULT_QUESTION_COUNT);
+
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const questionPoolRef = useRef<QuizQuestion[]>(topicKey ? loadQuizQuestions(topicKey) : []);
+  const questionsRef = useRef<QuizQuestion[]>(questionPoolRef.current);
+  const topicKeyRef = useRef(topicKey);
+  const phaseRef = useRef(phase);
+  const currentIndexRef = useRef(currentIndex);
+  const startedAtRef = useRef<number | null>(null);
+  const questionDurationRef = useRef<number | null>(null);
+  const questionCountRef = useRef(DEFAULT_QUESTION_COUNT);
+  const effectiveTimeLimitRef = useRef(15);
+  const submissionsRef = useRef<Map<string, SubmitAnswerPayload>>(new Map());
+  const scoresRef = useRef<Map<string, LeaderboardEntry>>(new Map(persisted.current.scores.map(s => [s.playerId, s])));
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+  useEffect(() => { topicKeyRef.current = topicKey; }, [topicKey]);
+  useEffect(() => {
+    savePersisted(gameId, { phase, topicKey, currentIndex, scores: leaderboard });
+  }, [gameId, phase, topicKey, currentIndex, leaderboard]);
+
+  const clearRevealTimer = useCallback(() => {
+    if (revealTimerRef.current) {
+      clearTimeout(revealTimerRef.current);
+      revealTimerRef.current = null;
+    }
+  }, []);
+
+  const revealAnswer = useCallback(() => {
+    if (phaseRef.current !== "QUESTION") return;
+    clearRevealTimer();
+    const question = questionsRef.current[currentIndexRef.current];
+    if (!question) return;
+    const totalTimeMs = effectiveTimeLimitRef.current * 1000;
+
+    for (const [playerId, submission] of submissionsRef.current) {
+      const isCorrect = submission.answerIndex === question.correctAnswer;
+      const elapsedMs = Math.min(Math.max(submission.timeElapsedMs, 0), totalTimeMs);
+      const points = isCorrect ? Math.round(1000 * (1 - elapsedMs / totalTimeMs)) : 0;
+      const prev = scoresRef.current.get(playerId);
+      scoresRef.current.set(playerId, {
+        playerId,
+        name: submission.name,
+        emoji: submission.emoji,
+        score: (prev?.score ?? 0) + points,
+        lastCorrect: isCorrect,
+        lastPoints: points,
+      });
+    }
+    // Players who never submitted still show up with lastCorrect=false, 0 points this round.
+    for (const p of scoresRef.current.values()) {
+      if (!submissionsRef.current.has(p.playerId)) {
+        scoresRef.current.set(p.playerId, { ...p, lastCorrect: false, lastPoints: 0 });
+      }
+    }
+
+    const board = computeLeaderboard(scoresRef.current);
+    setLeaderboard(board);
+    setCorrectAnswer(question.correctAnswer);
+    setPhase("REVEAL");
+
+    channelRef.current?.send({
+      type: "broadcast",
+      event: QUIZ_EVENTS.answerReveal,
+      payload: { correctAnswer: question.correctAnswer, leaderboard: board },
+    });
+  }, [clearRevealTimer]);
+
+  useEffect(() => {
+    if (!gameId) return;
+
+    const channel = supabase.channel(quizChannelName(gameId), {
+      config: { presence: { key: "host" } },
+    });
+    channelRef.current = channel;
+
+    channel.on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState<QuizPlayerPresence>();
+      const list: QuizPlayerPresence[] = [];
+      for (const key of Object.keys(state)) {
+        if (key === "host") continue;
+        const entry = state[key]?.[0];
+        if (entry) list.push(entry as unknown as QuizPlayerPresence);
+      }
+      list.sort((a, b) => a.joinedAt - b.joinedAt);
+      setPlayers(list);
+    });
+
+    channel.on("broadcast", { event: QUIZ_EVENTS.stateSyncRequest }, () => {
+      const question = questionsRef.current[currentIndexRef.current];
+      const publicQuestion = question ? { ...toPublicQuestion(question), timeLimit: effectiveTimeLimitRef.current } : null;
+      const payload: QuizStateSyncPayload = {
+        phase: phaseRef.current,
+        topicKey: topicKeyRef.current,
+        topicLabel: question?.category ?? "",
+        index: currentIndexRef.current,
+        total: questionsRef.current.length,
+        question: publicQuestion,
+        startedAt: startedAtRef.current,
+        correctAnswer: phaseRef.current === "REVEAL" || phaseRef.current === "ENDED" ? question?.correctAnswer ?? null : null,
+        leaderboard: computeLeaderboard(scoresRef.current),
+      };
+      channel.send({ type: "broadcast", event: QUIZ_EVENTS.stateSync, payload });
+    });
+
+    channel.on("broadcast", { event: QUIZ_EVENTS.submitAnswer }, ({ payload }: { payload: SubmitAnswerPayload }) => {
+      if (phaseRef.current !== "QUESTION") return;
+      if (submissionsRef.current.has(payload.playerId)) return;
+      // Host's own clock is authoritative for timing, not the client's self-reported value.
+      const hostElapsedMs = startedAtRef.current != null ? Date.now() - startedAtRef.current : payload.timeElapsedMs;
+      submissionsRef.current.set(payload.playerId, { ...payload, timeElapsedMs: hostElapsedMs });
+      setSubmittedCount(submissionsRef.current.size);
+    });
+
+    channel.subscribe(status => {
+      setConnected(status === "SUBSCRIBED");
+      if (status === "SUBSCRIBED") {
+        channel.track({ playerId: "host", name: "host", emoji: "🎙️", joinedAt: Date.now() });
+      }
+    });
+
+    return () => {
+      clearRevealTimer();
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [gameId, clearRevealTimer]);
+
+  const setTopic = useCallback((key: string) => {
+    if (phaseRef.current !== "LOBBY") return;
+    questionPoolRef.current = loadQuizQuestions(key);
+    questionsRef.current = questionPoolRef.current;
+    setTopicKeyState(key);
+    const label = questionPoolRef.current[0]?.category ?? key;
+    channelRef.current?.send({
+      type: "broadcast",
+      event: QUIZ_EVENTS.gameModeChanged,
+      payload: { topicKey: key, topicLabel: label },
+    });
+  }, []);
+
+  /** How many questions to randomly sample from the chosen topic per game. */
+  const setQuestionCount = useCallback((count: number) => {
+    questionCountRef.current = count;
+    setQuestionCountState(count);
+  }, []);
+
+  const showQuestion = useCallback((index: number) => {
+    const question = questionsRef.current[index];
+    if (!question) return;
+    submissionsRef.current = new Map();
+    setSubmittedCount(0);
+    setCorrectAnswer(null);
+    const now = Date.now();
+    startedAtRef.current = now;
+    setStartedAt(now);
+    setCurrentIndex(index);
+    setPhase("QUESTION");
+
+    const effectiveTimeLimit = questionDurationRef.current ?? question.timeLimit;
+    effectiveTimeLimitRef.current = effectiveTimeLimit;
+
+    channelRef.current?.send({
+      type: "broadcast",
+      event: QUIZ_EVENTS.questionShown,
+      payload: {
+        question: { ...toPublicQuestion(question), timeLimit: effectiveTimeLimit },
+        index,
+        total: questionsRef.current.length,
+        startedAt: now,
+      },
+    });
+
+    clearRevealTimer();
+    revealTimerRef.current = setTimeout(() => revealAnswer(), effectiveTimeLimit * 1000 + 400);
+  }, [clearRevealTimer, revealAnswer]);
+
+  /** Overrides the per-question timer (null reverts to each question's own timeLimit). */
+  const setQuestionDuration = useCallback((seconds: number | null) => {
+    questionDurationRef.current = seconds;
+    setQuestionDurationSec(seconds);
+  }, []);
+
+  const startQuiz = useCallback(() => {
+    if (!topicKeyRef.current || questionPoolRef.current.length === 0) return;
+    const count = Math.min(Math.max(questionCountRef.current, 1), questionPoolRef.current.length);
+    questionsRef.current = sampleQuestions(questionPoolRef.current, count);
+    showQuestion(0);
+  }, [showQuestion]);
+
+  /** Ends the quiz immediately, wherever it currently is (host-initiated "end game"). */
+  const endQuiz = useCallback(() => {
+    clearRevealTimer();
+    if (phaseRef.current === "LOBBY") return;
+    setPhase("ENDED");
+    channelRef.current?.send({ type: "broadcast", event: QUIZ_EVENTS.phaseChanged, payload: { phase: "ENDED" } });
+  }, [clearRevealTimer]);
+
+  const nextQuestion = useCallback(() => {
+    const next = currentIndexRef.current + 1;
+    if (next >= questionsRef.current.length) {
+      endQuiz();
+      return;
+    }
+    showQuestion(next);
+  }, [showQuestion, endQuiz]);
+
+  const resetQuiz = useCallback(() => {
+    clearRevealTimer();
+    submissionsRef.current = new Map();
+    scoresRef.current = new Map();
+    startedAtRef.current = null;
+    setSubmittedCount(0);
+    setCorrectAnswer(null);
+    setLeaderboard([]);
+    setCurrentIndex(0);
+    setStartedAt(null);
+    setPhase("LOBBY");
+    channelRef.current?.send({ type: "broadcast", event: QUIZ_EVENTS.quizReset, payload: {} });
+  }, [clearRevealTimer]);
+
+  const totalQuestions = questionsRef.current.length;
+  const currentQuestion = questionsRef.current[currentIndex] ?? null;
+
+  return {
+    phase, players, connected, topicKey, setTopic,
+    currentIndex, totalQuestions, currentQuestion, startedAt,
+    submittedCount, correctAnswer, leaderboard,
+    questionDurationSec, setQuestionDuration,
+    questionCount, setQuestionCount,
+    startQuiz, revealAnswer, nextQuestion, resetQuiz, endQuiz,
+  };
+}
