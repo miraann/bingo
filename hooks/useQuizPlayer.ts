@@ -15,6 +15,7 @@ import {
   type QuizPhase,
   type QuizPhaseChangedPayload,
   type QuizStateSyncPayload,
+  type TimerPauseChangedPayload,
 } from "@/lib/quizChannel";
 
 interface PersistedPlayer {
@@ -58,6 +59,7 @@ export function useQuizPlayer(gameId: string) {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [paused, setPaused] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
@@ -68,9 +70,11 @@ export function useQuizPlayer(gameId: string) {
   const playerRef = useRef(player);
   const hasSubmittedRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
+  const pausedRef = useRef(false);
   useEffect(() => { playerRef.current = player; }, [player]);
   useEffect(() => { hasSubmittedRef.current = hasSubmitted; }, [hasSubmitted]);
   useEffect(() => { startedAtRef.current = startedAt; }, [startedAt]);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -90,11 +94,17 @@ export function useQuizPlayer(gameId: string) {
       setQuestionIndex(payload.index);
       setTotalQuestions(payload.total);
       setStartedAt(payload.startedAt);
+      setPaused(false);
       setTopicLabel(payload.question.category);
       setSelectedAnswer(null);
       setHasSubmitted(false);
       setCorrectAnswer(null);
       setPhase("QUESTION");
+    });
+
+    channel.on("broadcast", { event: QUIZ_EVENTS.timerPauseChanged }, ({ payload }: { payload: TimerPauseChangedPayload }) => {
+      setPaused(payload.paused);
+      setStartedAt(payload.startedAt);
     });
 
     channel.on("broadcast", { event: QUIZ_EVENTS.answerReveal }, ({ payload }: { payload: AnswerRevealPayload }) => {
@@ -112,6 +122,7 @@ export function useQuizPlayer(gameId: string) {
       setQuestion(null);
       setQuestionIndex(0);
       setStartedAt(null);
+      setPaused(false);
       setSelectedAnswer(null);
       setHasSubmitted(false);
       setCorrectAnswer(null);
@@ -125,6 +136,7 @@ export function useQuizPlayer(gameId: string) {
       setTotalQuestions(payload.total);
       setQuestion(payload.question);
       setStartedAt(payload.startedAt);
+      setPaused(payload.paused);
       setCorrectAnswer(payload.correctAnswer);
       setLeaderboard(payload.leaderboard);
     });
@@ -155,7 +167,7 @@ export function useQuizPlayer(gameId: string) {
   }, [gameId]);
 
   const submitAnswer = useCallback((answerIndex: number) => {
-    if (hasSubmittedRef.current || !playerRef.current) return;
+    if (hasSubmittedRef.current || pausedRef.current || !playerRef.current) return;
     setSelectedAnswer(answerIndex);
     setHasSubmitted(true);
     const timeElapsedMs = startedAtRef.current != null ? Date.now() - startedAtRef.current : 0;
@@ -180,7 +192,7 @@ export function useQuizPlayer(gameId: string) {
   const myEntry = player ? leaderboard.find(e => e.playerId === player.playerId) ?? null : null;
 
   return {
-    player, phase, topicLabel, question, questionIndex, totalQuestions, startedAt,
+    player, phase, topicLabel, question, questionIndex, totalQuestions, startedAt, paused,
     selectedAnswer, hasSubmitted, correctAnswer, leaderboard, feedback, myEntry, connected,
     join, submitAnswer,
   };

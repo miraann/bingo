@@ -8,12 +8,14 @@ export function CountdownRing({
   onExpire,
   size = 96,
   strokeWidth = 8,
+  paused = false,
 }: {
   totalMs: number;
   startedAt: number;
   onExpire?: () => void;
   size?: number;
   strokeWidth?: number;
+  paused?: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const expiredRef = useRef(false);
@@ -21,20 +23,25 @@ export function CountdownRing({
   useEffect(() => {
     expiredRef.current = false;
     setNow(Date.now());
+  }, [startedAt, totalMs]);
+
+  // Frozen while paused — the interval simply stops advancing `now`.
+  useEffect(() => {
+    if (paused) return;
     const id = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(id);
-  }, [startedAt, totalMs]);
+  }, [paused, startedAt, totalMs]);
 
   const elapsed = Math.max(0, now - startedAt);
   const remainingMs = Math.max(0, totalMs - elapsed);
   const fraction = totalMs > 0 ? remainingMs / totalMs : 0;
 
   useEffect(() => {
-    if (remainingMs <= 0 && !expiredRef.current) {
+    if (!paused && remainingMs <= 0 && !expiredRef.current) {
       expiredRef.current = true;
       onExpire?.();
     }
-  }, [remainingMs, onExpire]);
+  }, [remainingMs, onExpire, paused]);
 
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;

@@ -48,6 +48,14 @@ export interface QuizPhaseChangedPayload {
   phase: QuizPhase;
 }
 
+/** Broadcast when the host pauses/resumes the current question's timer.
+ *  On resume, startedAt is shifted forward by the paused duration so every
+ *  client's countdown realigns to the same remaining time. */
+export interface TimerPauseChangedPayload {
+  paused: boolean;
+  startedAt: number;
+}
+
 /** Full snapshot sent in response to a late-joiner's state-sync request. */
 export interface QuizStateSyncPayload {
   phase: QuizPhase;
@@ -57,6 +65,7 @@ export interface QuizStateSyncPayload {
   total: number;
   question: PublicQuizQuestion | null;
   startedAt: number | null;
+  paused: boolean;
   correctAnswer: number | null;
   leaderboard: LeaderboardEntry[];
 }
@@ -70,6 +79,7 @@ export const QUIZ_EVENTS = {
   answerReveal: "answer-reveal",
   phaseChanged: "quiz-phase-changed",
   quizReset: "quiz-reset",
+  timerPauseChanged: "timer-pause-changed",
 } as const;
 
 export function quizChannelName(gameId: string) {

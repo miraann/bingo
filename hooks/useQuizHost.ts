@@ -12,6 +12,7 @@ import {
   type QuizPlayerPresence,
   type QuizStateSyncPayload,
   type SubmitAnswerPayload,
+  type TimerPauseChangedPayload,
 } from "@/lib/quizChannel";
 
 interface PersistedHostState {
@@ -85,6 +86,7 @@ export function useQuizHost(gameId: string) {
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(persisted.current.scores);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [paused, setPaused] = useState(false);
   const [questionDurationSec, setQuestionDurationSec] = useState<number | null>(null);
   const [questionCount, setQuestionCountState] = useState(DEFAULT_QUESTION_COUNT);
 
@@ -103,6 +105,8 @@ export function useQuizHost(gameId: string) {
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextQuestionRef = useRef<() => void>(() => {});
+  const pausedRef = useRef(false);
+  const remainingMsAtPauseRef = useRef(0);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
@@ -201,6 +205,7 @@ export function useQuizHost(gameId: string) {
         total: questionsRef.current.length,
         question: publicQuestion,
         startedAt: startedAtRef.current,
+        paused: pausedRef.current,
         correctAnswer: phaseRef.current === "REVEAL" || phaseRef.current === "ENDED" ? question?.correctAnswer ?? null : null,
         leaderboard: computeLeaderboard(scoresRef.current),
       };
@@ -208,7 +213,7 @@ export function useQuizHost(gameId: string) {
     });
 
     channel.on("broadcast", { event: QUIZ_EVENTS.submitAnswer }, ({ payload }: { payload: SubmitAnswerPayload }) => {
-      if (phaseRef.current !== "QUESTION") return;
+      if (phaseRef.current !== "QUESTION" || pausedRef.current) return;
       if (submissionsRef.current.has(payload.playerId)) return;
       // Host's own clock is authoritative for timing, not the client's self-reported value.
       const hostElapsedMs = startedAtRef.current != null ? Date.now() - startedAtRef.current : payload.timeElapsedMs;
@@ -256,6 +261,8 @@ export function useQuizHost(gameId: string) {
     submissionsRef.current = new Map();
     setSubmittedCount(0);
     setCorrectAnswer(null);
+    pausedRef.current = false;
+    setPaused(false);
     const now = Date.now();
     startedAtRef.current = now;
     setStartedAt(now);
@@ -280,6 +287,38 @@ export function useQuizHost(gameId: string) {
     revealTimerRef.current = setTimeout(() => revealAnswer(), effectiveTimeLimit * 1000 + 400);
   }, [clearRevealTimer, revealAnswer]);
 
+  /** Pauses the current question's countdown, freezing the remaining time for
+   *  every client and blocking new submissions until resumed. */
+  const pauseQuestion = useCallback(() => {
+    if (phaseRef.current !== "QUESTION" || pausedRef.current || startedAtRef.current == null) return;
+    const elapsedMs = Date.now() - startedAtRef.current;
+    remainingMsAtPauseRef.current = Math.max(0, effectiveTimeLimitRef.current * 1000 - elapsedMs);
+    pausedRef.current = true;
+    setPaused(true);
+    clearRevealTimer();
+
+    const payload: TimerPauseChangedPayload = { paused: true, startedAt: startedAtRef.current };
+    channelRef.current?.send({ type: "broadcast", event: QUIZ_EVENTS.timerPauseChanged, payload });
+  }, [clearRevealTimer]);
+
+  /** Resumes a paused question — shifts startedAt forward by the paused
+   *  duration so the frozen remaining time carries over exactly, then
+   *  reschedules the auto-reveal. */
+  const resumeQuestion = useCallback(() => {
+    if (phaseRef.current !== "QUESTION" || !pausedRef.current) return;
+    const newStartedAt = Date.now() - (effectiveTimeLimitRef.current * 1000 - remainingMsAtPauseRef.current);
+    startedAtRef.current = newStartedAt;
+    setStartedAt(newStartedAt);
+    pausedRef.current = false;
+    setPaused(false);
+
+    clearRevealTimer();
+    revealTimerRef.current = setTimeout(() => revealAnswer(), remainingMsAtPauseRef.current + 400);
+
+    const payload: TimerPauseChangedPayload = { paused: false, startedAt: newStartedAt };
+    channelRef.current?.send({ type: "broadcast", event: QUIZ_EVENTS.timerPauseChanged, payload });
+  }, [clearRevealTimer, revealAnswer]);
+
   /** Overrides the per-question timer (null reverts to each question's own timeLimit). */
   const setQuestionDuration = useCallback((seconds: number | null) => {
     questionDurationRef.current = seconds;
@@ -298,6 +337,8 @@ export function useQuizHost(gameId: string) {
     clearRevealTimer();
     clearAutoAdvanceTimer();
     if (phaseRef.current === "LOBBY") return;
+    pausedRef.current = false;
+    setPaused(false);
     setPhase("ENDED");
     channelRef.current?.send({ type: "broadcast", event: QUIZ_EVENTS.phaseChanged, payload: { phase: "ENDED" } });
   }, [clearRevealTimer, clearAutoAdvanceTimer]);
@@ -320,6 +361,8 @@ export function useQuizHost(gameId: string) {
     submissionsRef.current = new Map();
     scoresRef.current = new Map();
     startedAtRef.current = null;
+    pausedRef.current = false;
+    setPaused(false);
     setSubmittedCount(0);
     setCorrectAnswer(null);
     setLeaderboard([]);
@@ -334,10 +377,11 @@ export function useQuizHost(gameId: string) {
 
   return {
     phase, players, connected, topicKey, setTopic,
-    currentIndex, totalQuestions, currentQuestion, startedAt,
+    currentIndex, totalQuestions, currentQuestion, startedAt, paused,
     submittedCount, correctAnswer, leaderboard,
     questionDurationSec, setQuestionDuration,
     questionCount, setQuestionCount,
     startQuiz, revealAnswer, nextQuestion, resetQuiz, endQuiz,
+    pauseQuestion, resumeQuestion,
   };
 }

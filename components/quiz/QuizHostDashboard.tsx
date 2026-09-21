@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer } from "lucide-react";
+import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pause, Play } from "lucide-react";
 import { TIMER_PRESETS } from "@/lib/bingo";
 import { getOrCreateQuizHostGameId, createNewQuizHostGameId } from "@/lib/id";
 import { listQuizTopics } from "@/lib/quizLoader";
@@ -31,11 +31,12 @@ export function QuizHostDashboard({
 
   const {
     phase, players, connected, topicKey, setTopic,
-    currentIndex, totalQuestions, currentQuestion, startedAt,
+    currentIndex, totalQuestions, currentQuestion, startedAt, paused,
     submittedCount, correctAnswer, leaderboard,
     questionDurationSec, setQuestionDuration,
     questionCount, setQuestionCount,
     startQuiz, revealAnswer, nextQuestion, resetQuiz, endQuiz,
+    pauseQuestion, resumeQuestion,
   } = useQuizHost(gameId);
 
   const [joinUrl, setJoinUrl] = useState("");
@@ -280,8 +281,24 @@ export function QuizHostDashboard({
         </span>
       </div>
 
-      {/* ── Toolbar: reset / end / music / bell / timer ─────────────────────── */}
+      {/* ── Toolbar: pause / reset / end / music / bell / timer ─────────────── */}
       <div className="flex flex-wrap items-center justify-center gap-3 w-full max-w-2xl">
+        {!revealed && (
+          <motion.button
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={paused ? resumeQuestion : pauseQuestion}
+            title={paused ? "بەردەوامبوون" : "وەستاندن"}
+            className={`
+              flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-16 h-16
+              transition-colors duration-200 cursor-pointer
+              ${paused ? "bg-emerald-500 text-white shadow-[0_4px_14px_rgba(16,185,129,0.40)]" : "bg-gray-100 hover:bg-emerald-50 text-gray-400 hover:text-emerald-600"}
+            `}
+          >
+            {paused ? <Play size={22} strokeWidth={2.5} /> : <Pause size={22} strokeWidth={2.5} />}
+            <span className="text-[10px] font-bold">{paused ? "بەردەوامبوون" : "وەستاندن"}</span>
+          </motion.button>
+        )}
         <motion.button
           whileHover={{ scale: 1.06 }}
           whileTap={{ scale: 0.9 }}
@@ -350,7 +367,10 @@ export function QuizHostDashboard({
           </span>
 
           {!revealed && startedAt != null && (
-            <CountdownRing totalMs={(questionDurationSec ?? currentQuestion.timeLimit) * 1000} startedAt={startedAt} />
+            <CountdownRing totalMs={(questionDurationSec ?? currentQuestion.timeLimit) * 1000} startedAt={startedAt} paused={paused} />
+          )}
+          {paused && !revealed && (
+            <p className="text-sm font-bold text-emerald-600">⏸ وەستاوە</p>
           )}
 
           <h2 className="text-xl md:text-2xl font-black text-gray-800 text-center max-w-2xl mt-6 md:mt-8 mb-4 md:mb-6">

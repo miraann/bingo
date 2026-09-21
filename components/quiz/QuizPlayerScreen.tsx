@@ -19,7 +19,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
 
   const {
     player, phase, topicLabel, question, questionIndex, totalQuestions,
-    startedAt, selectedAnswer, hasSubmitted, correctAnswer, leaderboard,
+    startedAt, paused, selectedAnswer, hasSubmitted, correctAnswer, leaderboard,
     feedback, myEntry, connected, join, submitAnswer,
   } = useQuizPlayer(gameId);
 
@@ -128,7 +128,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
           </span>
 
           {!revealed && startedAt != null && (
-            <CountdownRing totalMs={question.timeLimit * 1000} startedAt={startedAt} />
+            <CountdownRing totalMs={question.timeLimit * 1000} startedAt={startedAt} paused={paused} />
           )}
 
           <h2 className="text-lg md:text-xl font-black text-gray-800 text-center max-w-sm mt-4 mb-4">{question.question}</h2>
@@ -137,11 +137,14 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
             options={question.options}
             selectedAnswer={selectedAnswer}
             correctAnswer={revealed ? correctAnswer : null}
-            disabled={hasSubmitted || revealed}
+            disabled={hasSubmitted || revealed || paused}
             onSelect={submitAnswer}
           />
 
-          {!revealed && hasSubmitted && (
+          {!revealed && paused && (
+            <p className="text-sm font-bold text-emerald-600">⏸ یاریمان وەستاوە، چاوەڕێی بکە...</p>
+          )}
+          {!revealed && !paused && hasSubmitted && (
             <p className="text-sm text-gray-400 font-bold">چاوەڕێی وەڵامی ڕاست بکە...</p>
           )}
 
