@@ -187,9 +187,15 @@ export default function BingoDashboard() {
   /* ── Winner modal — pauses the game until the host acknowledges it ──────── */
   useEffect(() => {
     if (winners.length > winnersSeenRef.current) {
+      const isFirstWinner = winnersSeenRef.current === 0;
       winnersSeenRef.current = winners.length;
       setAutoOn(false);
       setActiveAnnouncement(winners[winners.length - 1]);
+      if (isFirstWinner) {
+        const cheer = new Audio("/audio/win-cheer.wav");
+        cheer.volume = 0.8;
+        cheer.play().catch(() => {});
+      }
     }
   }, [winners]);
 
@@ -374,7 +380,7 @@ export default function BingoDashboard() {
         px-2 md:px-3 pt-2 pb-1 overflow-x-hidden
       "
     >
-      <WinnerModal winner={activeAnnouncement} onContinue={continueGame} onNewGame={newGameFromWinner} />
+      <WinnerModal winner={activeAnnouncement} calledSet={calledSet} onContinue={continueGame} onNewGame={newGameFromWinner} />
 
       {/* ════════════════════════════════════════════════════════════════════
           TOP SECTION — flex-none so it never compresses the board

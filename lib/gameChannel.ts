@@ -46,6 +46,7 @@ export interface BingoResultPayload {
   emoji: string;
   valid: boolean;
   pattern: WinPattern | null;
+  card: BingoCard;
 }
 
 export const GAME_EVENTS = {

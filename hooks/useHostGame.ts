@@ -129,6 +129,7 @@ export function useHostGame(gameId: string) {
         emoji: payload.emoji,
         valid: pattern !== null,
         pattern,
+        card: payload.card,
       };
       channel.send({ type: "broadcast", event: GAME_EVENTS.bingoResult, payload: result });
       if (result.valid) {

@@ -1,19 +1,29 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy } from "lucide-react";
+import { Trophy, Eye, EyeOff } from "lucide-react";
 import type { BingoResultPayload } from "@/lib/gameChannel";
-import { patternLabel } from "@/lib/bingo";
+import { GROUPS, patternLabel } from "@/lib/bingo";
 
 export function WinnerModal({
   winner,
+  calledSet,
   onContinue,
   onNewGame,
 }: {
   winner: BingoResultPayload | null;
+  calledSet: Set<number>;
   onContinue: () => void;
   onNewGame: () => void;
 }) {
+  const [showCard, setShowCard] = useState(false);
+
+  // Collapse the card again the next time a (different) winner pops up.
+  useEffect(() => {
+    setShowCard(false);
+  }, [winner?.playerId]);
+
   return (
     <AnimatePresence>
       {winner && winner.valid && (
@@ -46,6 +56,56 @@ export function WinnerModal({
             {winner.pattern && (
               <p className="text-sm font-bold text-gray-400">{patternLabel(winner.pattern)}</p>
             )}
+
+            <button
+              onClick={() => setShowCard(v => !v)}
+              className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-gray-600 cursor-pointer transition-colors"
+            >
+              {showCard ? <EyeOff size={13} /> : <Eye size={13} />}
+              {showCard ? "شاردنەوەی کارت" : "بینینی کارتی براوە"}
+            </button>
+
+            <AnimatePresence>
+              {showCard && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="w-full overflow-hidden"
+                  dir="ltr"
+                >
+                  <div className="grid grid-cols-5 gap-1 mb-1 pt-1">
+                    {GROUPS.map(g => (
+                      <div key={g.letter} className={`${g.bg} rounded py-1 flex items-center justify-center`}>
+                        <span className="text-white font-black text-[11px]">{g.letter}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-5 gap-1">
+                    {winner.card.map((row, r) =>
+                      row.map((cell, c) => {
+                        const isFree = cell === "FREE";
+                        const n = isFree ? null : (cell as number);
+                        const called = isFree || (n !== null && calledSet.has(n));
+                        const group = GROUPS[c];
+                        return (
+                          <div
+                            key={`${r}-${c}`}
+                            className={`
+                              aspect-square rounded flex items-center justify-center
+                              text-xs font-black
+                              ${called ? `${group.calledBg} text-white` : "bg-gray-50 border border-gray-200 text-gray-400"}
+                            `}
+                          >
+                            {isFree ? "★" : n}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="flex items-center gap-3 w-full mt-3">
               <button
