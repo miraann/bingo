@@ -57,7 +57,7 @@ export function usePlayerGame(gameId: string) {
   const [currentNumber, setCurrentNumber] = useState<number | null>(null);
   const [marked, setMarked] = useState<Set<number>>(new Set());
   const [autoMarkEnabled, setAutoMarkEnabled] = useState(true);
-  const [highlightCurrent, setHighlightCurrent] = useState(true);
+  const [hintsEnabled, setHintsEnabled] = useState(true);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>("idle");
   const [announcements, setAnnouncements] = useState<BingoResultPayload[]>([]);
   const [connected, setConnected] = useState(false);
@@ -92,8 +92,8 @@ export function usePlayerGame(gameId: string) {
       setAutoMarkEnabled(payload.enabled);
     });
 
-    channel.on("broadcast", { event: GAME_EVENTS.highlightChanged }, ({ payload }: { payload: ToggleChangedPayload }) => {
-      setHighlightCurrent(payload.enabled);
+    channel.on("broadcast", { event: GAME_EVENTS.hintsChanged }, ({ payload }: { payload: ToggleChangedPayload }) => {
+      setHintsEnabled(payload.enabled);
     });
 
     channel.on("broadcast", { event: GAME_EVENTS.stateSync }, ({ payload }: { payload: StateSyncPayload }) => {
@@ -101,7 +101,7 @@ export function usePlayerGame(gameId: string) {
       setCalledNumbers(payload.calledNumbers);
       setCurrentNumber(payload.currentNumber);
       setAutoMarkEnabled(payload.autoMarkEnabled);
-      setHighlightCurrent(payload.highlightCurrent);
+      setHintsEnabled(payload.hintsEnabled);
     });
 
     channel.on("broadcast", { event: GAME_EVENTS.gameReset }, () => {
@@ -185,7 +185,7 @@ export function usePlayerGame(gameId: string) {
     currentNumber,
     marked,
     autoMarkEnabled,
-    highlightCurrent,
+    hintsEnabled,
     claimStatus,
     setClaimStatus,
     announcements,

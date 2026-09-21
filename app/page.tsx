@@ -75,7 +75,7 @@ export default function BingoDashboard() {
 
   const {
     phase, players, calledNumbers, currentNumber, winners, connected,
-    autoMarkEnabled, toggleAutoMark, highlightCurrent, toggleHighlightCurrent,
+    autoMarkEnabled, toggleAutoMark, hintsEnabled, toggleHints,
     startGame, endGame, drawNumber, resetGame,
   } = useHostGame(gameId);
 
@@ -403,25 +403,18 @@ export default function BingoDashboard() {
               ڕاکێشانی تۆپ
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.93 }}
-              onClick={generatePDF}
-              disabled={isPrinting}
-              title="پرینت کردنی کارتەکان"
-              className={`
-                flex items-center gap-1.5 flex-shrink-0
-                border-2 border-gray-200 bg-white text-gray-500 font-bold rounded-2xl
-                text-sm md:text-base
-                px-3 md:px-4 py-2.5 md:py-3.5
-                hover:border-purple-300 hover:text-purple-600
-                transition-all duration-200
-                ${isPrinting ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-              `}
+              whileHover={{ scale: 1.12 }}
+              whileTap={{ scale: 0.88 }}
+              onClick={endGame}
+              title="کۆتایی یاری"
+              className="
+                flex-shrink-0 rounded-xl w-14 md:w-16 py-1.5 md:py-2
+                bg-gray-100 hover:bg-amber-50 text-gray-400 hover:text-amber-500
+                flex flex-col items-center justify-center gap-1 transition-colors duration-200
+              "
             >
-              <Printer size={16} strokeWidth={2} />
-              <span className="hidden sm:inline text-xs md:text-sm">
-                {isPrinting ? "..." : "پرینت"}
-              </span>
+              <Flag size={16} strokeWidth={2.5} />
+              <span className="text-[10px] font-bold leading-none whitespace-nowrap">کۆتایی</span>
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.12, rotate: -35 }}
@@ -429,25 +422,32 @@ export default function BingoDashboard() {
               onClick={reset}
               title="ریست کردنەوە"
               className="
-                w-10 h-10 flex-shrink-0 rounded-xl
+                flex-shrink-0 rounded-xl w-14 md:w-16 py-1.5 md:py-2
                 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500
-                flex items-center justify-center transition-colors duration-200
+                flex flex-col items-center justify-center gap-1 transition-colors duration-200
               "
             >
               <RotateCcw size={18} strokeWidth={2.5} />
+              <span className="text-[10px] font-bold leading-none whitespace-nowrap">ڕیست</span>
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.12 }}
-              whileTap={{ scale: 0.88 }}
-              onClick={endGame}
-              title="کۆتایی یاری"
-              className="
-                w-10 h-10 flex-shrink-0 rounded-xl
-                bg-gray-100 hover:bg-amber-50 text-gray-400 hover:text-amber-500
-                flex items-center justify-center transition-colors duration-200
-              "
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.93 }}
+              onClick={generatePDF}
+              disabled={isPrinting}
+              title="پرینت کردنی کارتەکان"
+              className={`
+                flex-shrink-0 rounded-xl w-14 md:w-16 py-1.5 md:py-2
+                border-2 border-gray-200 bg-white text-gray-500 font-bold
+                hover:border-purple-300 hover:text-purple-600
+                flex flex-col items-center justify-center gap-1 transition-all duration-200
+                ${isPrinting ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+              `}
             >
-              <Flag size={16} strokeWidth={2.5} />
+              <Printer size={16} strokeWidth={2} />
+              <span className="text-[10px] leading-none whitespace-nowrap">
+                {isPrinting ? "..." : "پرینت"}
+              </span>
             </motion.button>
           </div>
 
@@ -635,8 +635,8 @@ export default function BingoDashboard() {
             activeClass="bg-blue-500 text-white shadow-[0_4px_14px_rgba(59,130,246,0.40)]"
           />
           <IconToggle
-            activeIcon={Eye} inactiveIcon={EyeOff} label="دیاریکردنی ژمارە" active={highlightCurrent}
-            onClick={toggleHighlightCurrent}
+            activeIcon={Eye} inactiveIcon={EyeOff} label="یارمەتیدان" active={hintsEnabled}
+            onClick={toggleHints}
             activeClass="bg-indigo-500 text-white shadow-[0_4px_14px_rgba(99,102,241,0.40)]"
           />
         </div>

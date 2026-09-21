@@ -24,7 +24,7 @@ export function PlayClient() {
 
   const gameId = urlGameId;
   const {
-    player, phase, calledSet, currentNumber, marked, autoMarkEnabled, highlightCurrent,
+    player, phase, calledSet, currentNumber, marked, autoMarkEnabled, hintsEnabled,
     claimStatus, setClaimStatus, announcements, connected, join, toggleMark, claimBingo,
   } = usePlayerGame(gameId);
 
@@ -153,16 +153,16 @@ export function PlayClient() {
           </span>
           <span
             className={`flex items-center gap-1 text-[10px] font-bold rounded-full px-2.5 py-1 ${
-              highlightCurrent ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
+              hintsEnabled ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
             }`}
           >
-            {highlightCurrent ? <Eye size={11} /> : <EyeOff size={11} />}
-            {highlightCurrent ? "ڕوونکردنەوە" : "بێ یارمەتی"}
+            {hintsEnabled ? <Eye size={11} /> : <EyeOff size={11} />}
+            {hintsEnabled ? "ڕوونکردنەوە" : "بێ یارمەتی"}
           </span>
         </div>
       </div>
 
-      {!autoMarkEnabled && !highlightCurrent && (
+      {!autoMarkEnabled && !hintsEnabled && (
         <p className="text-xs text-amber-600 font-bold -mt-2">
           پێویستە بە خۆت ژمارەکان لە کارتەکەت بدۆزیتەوە و دایبنێیت
         </p>
@@ -184,7 +184,7 @@ export function PlayClient() {
         calledSet={calledSet}
         marked={marked}
         currentNumber={currentNumber}
-        highlightCurrent={highlightCurrent}
+        hintsEnabled={hintsEnabled}
         onToggle={toggleMark}
       />
 

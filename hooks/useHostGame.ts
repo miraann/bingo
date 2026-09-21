@@ -20,7 +20,7 @@ interface PersistedHostState {
   calledNumbers: number[];
   currentNumber: number | null;
   autoMarkEnabled: boolean;
-  highlightCurrent: boolean;
+  hintsEnabled: boolean;
 }
 
 function storageKey(gameId: string) {
@@ -56,7 +56,7 @@ export function useHostGame(gameId: string) {
       calledNumbers: loaded?.calledNumbers ?? [],
       currentNumber: loaded?.currentNumber ?? null,
       autoMarkEnabled: loaded?.autoMarkEnabled ?? true,
-      highlightCurrent: loaded?.highlightCurrent ?? true,
+      hintsEnabled: loaded?.hintsEnabled ?? true,
     };
   }
 
@@ -64,7 +64,7 @@ export function useHostGame(gameId: string) {
   const [calledNumbers, setCalledNumbers] = useState<number[]>(persisted.current.calledNumbers);
   const [currentNumber, setCurrentNumber] = useState<number | null>(persisted.current.currentNumber);
   const [autoMarkEnabled, setAutoMarkEnabled] = useState<boolean>(persisted.current.autoMarkEnabled);
-  const [highlightCurrent, setHighlightCurrent] = useState<boolean>(persisted.current.highlightCurrent);
+  const [hintsEnabled, setHintsEnabled] = useState<boolean>(persisted.current.hintsEnabled);
   const [players, setPlayers] = useState<PlayerPresence[]>([]);
   const [winners, setWinners] = useState<BingoResultPayload[]>([]);
   const [connected, setConnected] = useState(false);
@@ -75,17 +75,17 @@ export function useHostGame(gameId: string) {
   const phaseRef = useRef(phase);
   const currentNumberRef = useRef(currentNumber);
   const autoMarkEnabledRef = useRef(autoMarkEnabled);
-  const highlightCurrentRef = useRef(highlightCurrent);
+  const hintsEnabledRef = useRef(hintsEnabled);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { currentNumberRef.current = currentNumber; }, [currentNumber]);
   useEffect(() => { autoMarkEnabledRef.current = autoMarkEnabled; }, [autoMarkEnabled]);
-  useEffect(() => { highlightCurrentRef.current = highlightCurrent; }, [highlightCurrent]);
+  useEffect(() => { hintsEnabledRef.current = hintsEnabled; }, [hintsEnabled]);
   useEffect(() => {
     calledListRef.current = calledNumbers;
     calledSetRef.current = new Set(calledNumbers);
-    savePersisted(gameId, { phase, calledNumbers, currentNumber, autoMarkEnabled, highlightCurrent });
-  }, [gameId, phase, calledNumbers, currentNumber, autoMarkEnabled, highlightCurrent]);
+    savePersisted(gameId, { phase, calledNumbers, currentNumber, autoMarkEnabled, hintsEnabled });
+  }, [gameId, phase, calledNumbers, currentNumber, autoMarkEnabled, hintsEnabled]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -116,7 +116,7 @@ export function useHostGame(gameId: string) {
           calledNumbers: calledListRef.current,
           currentNumber: currentNumberRef.current,
           autoMarkEnabled: autoMarkEnabledRef.current,
-          highlightCurrent: highlightCurrentRef.current,
+          hintsEnabled: hintsEnabledRef.current,
         },
       });
     });
@@ -179,12 +179,12 @@ export function useHostGame(gameId: string) {
     });
   }, []);
 
-  const toggleHighlightCurrent = useCallback(() => {
-    setHighlightCurrent(prev => {
+  const toggleHints = useCallback(() => {
+    setHintsEnabled(prev => {
       const next = !prev;
       channelRef.current?.send({
         type: "broadcast",
-        event: GAME_EVENTS.highlightChanged,
+        event: GAME_EVENTS.hintsChanged,
         payload: { enabled: next },
       });
       return next;
@@ -231,8 +231,8 @@ export function useHostGame(gameId: string) {
     connected,
     autoMarkEnabled,
     toggleAutoMark,
-    highlightCurrent,
-    toggleHighlightCurrent,
+    hintsEnabled,
+    toggleHints,
     startGame,
     endGame,
     drawNumber,
