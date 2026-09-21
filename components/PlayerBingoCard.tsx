@@ -20,14 +20,14 @@ export function PlayerBingoCard({
 }) {
   return (
     <div className="w-full max-w-sm sm:max-w-md md:max-w-lg mx-auto" dir="ltr">
-      <div className="grid grid-cols-5 gap-1 mb-1">
+      <div className="grid grid-cols-5 gap-1.5 mb-1.5">
         {GROUPS.map(g => (
-          <div key={g.letter} className={`${g.bg} rounded-lg py-1.5 sm:py-2 flex items-center justify-center`}>
+          <div key={g.letter} className={`${g.bg} rounded-lg py-2 sm:py-2.5 flex items-center justify-center`}>
             <span className="text-white font-black text-lg sm:text-xl md:text-2xl">{g.letter}</span>
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
+      <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
         {card.map((row, r) =>
           row.map((cell, c) => {
             const isFree = cell === "FREE";
@@ -52,7 +52,7 @@ export function PlayerBingoCard({
                 animate={isCurrent ? { scale: [1, 1.15, 1] } : { scale: 1 }}
                 transition={{ duration: 0.35 }}
                 className={`
-                  aspect-square rounded-lg flex items-center justify-center
+                  aspect-[5/6] rounded-lg flex items-center justify-center
                   text-base sm:text-lg md:text-xl font-black select-none
                   ${isMarked
                     ? `${group.calledBg} text-white shadow-inner`

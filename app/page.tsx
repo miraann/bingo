@@ -23,7 +23,7 @@ import { useHostGame } from "@/hooks/useHostGame";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { QRPanel } from "@/components/QRPanel";
 import { PlayerLobbyList } from "@/components/PlayerLobbyList";
-import { WinnerBanner } from "@/components/WinnerBanner";
+import { WinnerModal } from "@/components/WinnerModal";
 import type { BingoResultPayload } from "@/lib/gameChannel";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -179,18 +179,17 @@ export default function BingoDashboard() {
 
   /* ── Auto mode ─────────────────────────────────────────────────────────── */
   useEffect(() => {
-    if (!autoOn || calledNumbers.length >= 75) return;
+    if (!autoOn || calledNumbers.length >= 75 || activeAnnouncement) return;
     const t = setTimeout(() => drawRef.current(), autoInterval * 1000);
     return () => clearTimeout(t);
-  }, [autoOn, calledNumbers.length, currentNumber, autoInterval]);
+  }, [autoOn, calledNumbers.length, currentNumber, autoInterval, activeAnnouncement]);
 
-  /* ── Winner banner (auto-dismiss) ──────────────────────────────────────── */
+  /* ── Winner modal — pauses the game until the host acknowledges it ──────── */
   useEffect(() => {
     if (winners.length > winnersSeenRef.current) {
       winnersSeenRef.current = winners.length;
+      setAutoOn(false);
       setActiveAnnouncement(winners[winners.length - 1]);
-      const t = setTimeout(() => setActiveAnnouncement(null), 6000);
-      return () => clearTimeout(t);
     }
   }, [winners]);
 
@@ -199,6 +198,12 @@ export default function BingoDashboard() {
     resetGame();
     setAutoOn(false);
     setBusy(false);
+  };
+
+  const continueGame = () => setActiveAnnouncement(null);
+  const newGameFromWinner = () => {
+    setActiveAnnouncement(null);
+    reset();
   };
 
   /* ── PDF Generator ────────────────────────────────────────────────────── */
@@ -369,7 +374,7 @@ export default function BingoDashboard() {
         px-2 md:px-3 pt-2 pb-1 overflow-x-hidden
       "
     >
-      <WinnerBanner announcement={activeAnnouncement} />
+      <WinnerModal winner={activeAnnouncement} onContinue={continueGame} onNewGame={newGameFromWinner} />
 
       {/* ════════════════════════════════════════════════════════════════════
           TOP SECTION — flex-none so it never compresses the board
@@ -390,14 +395,14 @@ export default function BingoDashboard() {
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.93 }}
               onClick={draw}
-              disabled={busy || calledNumbers.length >= 75}
+              disabled={busy || calledNumbers.length >= 75 || !!activeAnnouncement}
               className={`
                 bg-purple-600 text-white font-black rounded-2xl
                 shadow-[0_6px_24px_rgba(124,58,237,0.45)]
                 transition-colors duration-200
                 text-base md:text-xl xl:text-2xl
                 px-5 md:px-7 xl:px-9 py-2.5 md:py-3.5 xl:py-4
-                ${busy || calledNumbers.length >= 75
+                ${busy || calledNumbers.length >= 75 || activeAnnouncement
                   ? "opacity-40 cursor-not-allowed"
                   : "hover:bg-purple-700 active:bg-purple-800 cursor-pointer"}
               `}
@@ -459,59 +464,6 @@ export default function BingoDashboard() {
             </motion.button>
           </div>
 
-          {/* Winners */}
-          {winners.length > 0 && (
-            <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-xs">
-              {winners.map((w, i) =>
-                i === 0 ? (
-                  <motion.div
-                    key={w.playerId}
-                    initial={{ opacity: 0, scale: 0.5, y: -8 }}
-                    animate={{
-                      opacity: 1, y: 0,
-                      scale: [1, 1.08, 1],
-                      boxShadow: [
-                        "0 0 0 0 rgba(245,158,11,0.45)",
-                        "0 0 0 7px rgba(245,158,11,0)",
-                        "0 0 0 0 rgba(245,158,11,0)",
-                      ],
-                    }}
-                    transition={{
-                      opacity: { duration: 0.3 },
-                      y: { duration: 0.3 },
-                      scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
-                      boxShadow: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
-                    }}
-                    className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full pr-2.5 pl-1.5 py-1"
-                  >
-                    <motion.span
-                      animate={{ rotate: [0, -14, 14, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                      className="w-5 h-5 flex items-center justify-center flex-shrink-0"
-                    >
-                      <Trophy size={14} className="text-white" strokeWidth={2.5} />
-                    </motion.span>
-                    <span className="text-xs font-black text-white whitespace-nowrap">
-                      {w.emoji} {w.name}
-                    </span>
-                  </motion.div>
-                ) : (
-                  <div
-                    key={w.playerId}
-                    className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full pr-2.5 pl-1.5 py-1"
-                  >
-                    <span className="w-5 h-5 rounded-full bg-amber-400 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">
-                      #{i + 1}
-                    </span>
-                    <span className="text-xs font-bold text-amber-700 whitespace-nowrap">
-                      {w.emoji} {w.name}
-                    </span>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-
           {/* Timer settings */}
           <div className="flex flex-col items-center gap-1.5">
             <div className="flex items-center gap-1 text-gray-400">
@@ -548,6 +500,59 @@ export default function BingoDashboard() {
               <span className="text-[11px] text-gray-400 font-semibold">s</span>
             </div>
           </div>
+
+          {/* Winners */}
+          {winners.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-2 max-w-xs md:max-w-sm">
+              {winners.map((w, i) =>
+                i === 0 ? (
+                  <motion.div
+                    key={w.playerId}
+                    initial={{ opacity: 0, scale: 0.5, y: -8 }}
+                    animate={{
+                      opacity: 1, y: 0,
+                      scale: [1, 1.08, 1],
+                      boxShadow: [
+                        "0 0 0 0 rgba(245,158,11,0.45)",
+                        "0 0 0 9px rgba(245,158,11,0)",
+                        "0 0 0 0 rgba(245,158,11,0)",
+                      ],
+                    }}
+                    transition={{
+                      opacity: { duration: 0.3 },
+                      y: { duration: 0.3 },
+                      scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
+                      boxShadow: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
+                    }}
+                    className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full pr-4 pl-2 py-2"
+                  >
+                    <motion.span
+                      animate={{ rotate: [0, -14, 14, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      className="w-8 h-8 flex items-center justify-center flex-shrink-0"
+                    >
+                      <Trophy size={20} className="text-white" strokeWidth={2.5} />
+                    </motion.span>
+                    <span className="text-base font-black text-white whitespace-nowrap">
+                      {w.emoji} {w.name}
+                    </span>
+                  </motion.div>
+                ) : (
+                  <div
+                    key={w.playerId}
+                    className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-full pr-4 pl-1.5 py-2"
+                  >
+                    <span className="w-7 h-7 rounded-full bg-amber-400 text-white text-xs font-black flex items-center justify-center flex-shrink-0">
+                      #{i + 1}
+                    </span>
+                    <span className="text-base font-bold text-amber-700 whitespace-nowrap">
+                      {w.emoji} {w.name}
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── BALL ── */}
