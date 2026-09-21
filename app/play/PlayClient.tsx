@@ -9,7 +9,7 @@ import { useWakeLock } from "@/hooks/useWakeLock";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { PlayerBingoCard } from "@/components/PlayerBingoCard";
 import { WinnerBanner } from "@/components/WinnerBanner";
-import { patternLabel } from "@/lib/bingo";
+import { groupOf, patternLabel } from "@/lib/bingo";
 
 export function PlayClient() {
   useWakeLock();
@@ -24,9 +24,13 @@ export function PlayClient() {
 
   const gameId = urlGameId;
   const {
-    player, phase, calledSet, currentNumber, marked, autoMarkEnabled, hintsEnabled,
+    player, phase, calledNumbers, calledSet, currentNumber, marked, autoMarkEnabled, hintsEnabled,
     claimStatus, setClaimStatus, announcements, connected, join, toggleMark, claimBingo,
   } = usePlayerGame(gameId);
+
+  const calledCount = calledSet.size;
+  const progress    = (calledCount / 75) * 100;
+  const history      = calledNumbers.slice(1, 8);
 
   // Auto-clear an "invalid" claim result so the player can try again.
   useEffect(() => {
@@ -178,6 +182,42 @@ export function PlayClient() {
           {currentNumber}
         </motion.div>
       )}
+
+      {/* Progress */}
+      <div className="flex items-center gap-2.5 w-full max-w-sm" dir="ltr">
+        <span className="text-gray-500 text-sm font-mono w-6 text-right tabular-nums">{calledCount}</span>
+        <div className="flex-1 h-2.5 bg-gray-200 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full rounded-full bg-gradient-to-r from-purple-500 to-red-500"
+            animate={{ width: `${progress}%` }} transition={{ duration: 0.4 }}
+          />
+        </div>
+        <span className="text-gray-400 text-sm font-mono">75</span>
+      </div>
+
+      {/* History strip */}
+      <AnimatePresence>
+        {history.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-1.5 flex-wrap justify-center" dir="ltr"
+          >
+            {history.map((n, i) => {
+              const g = groupOf(n);
+              return (
+                <motion.div
+                  key={`h-${n}-${i}`}
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: Math.max(0.2, 1 - i * 0.13), scale: 1 }}
+                  className={`w-8 h-8 rounded-lg ${g.calledBg} text-white flex items-center justify-center text-sm font-black shadow-sm`}
+                >
+                  {n}
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <PlayerBingoCard
         card={player.card}
