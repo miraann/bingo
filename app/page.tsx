@@ -9,42 +9,16 @@ import {
   RotateCcw,
   Timer,
   Printer,
+  Users,
+  Flag,
 } from "lucide-react";
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   Data
-───────────────────────────────────────────────────────────────────────────── */
-
-const GROUPS = [
-  { letter: "B", start: 1,  bg: "bg-blue-600",  calledBg: "bg-blue-600",  border: "border-blue-400",   text: "text-blue-700",  hex: "#2563eb" },
-  { letter: "I", start: 16, bg: "bg-red-600",   calledBg: "bg-red-600",   border: "border-red-400",    text: "text-red-700",   hex: "#dc2626" },
-  { letter: "N", start: 31, bg: "bg-violet-600",calledBg: "bg-violet-600",border: "border-violet-400", text: "text-violet-700",hex: "#7c3aed" },
-  { letter: "G", start: 46, bg: "bg-green-600", calledBg: "bg-green-600", border: "border-green-400",  text: "text-green-700", hex: "#16a34a" },
-  { letter: "O", start: 61, bg: "bg-orange-500",calledBg: "bg-orange-500",border: "border-orange-400", text: "text-orange-600",hex: "#f97316" },
-] as const;
-
-const TIMER_PRESETS = [10, 15, 30] as const;
-
-function generateBingoCard(): (number | string)[][] {
-  const ranges = [[1,15],[16,30],[31,45],[46,60],[61,75]];
-  const columns = ranges.map(([min, max]) => {
-    const pool: number[] = [];
-    while (pool.length < 5) {
-      const n = Math.floor(Math.random() * (max - min + 1)) + min;
-      if (!pool.includes(n)) pool.push(n);
-    }
-    return pool;
-  });
-  const grid: (number | string)[][] = Array.from({length: 5}, (_, r) =>
-    Array.from({length: 5}, (_, c) => columns[c][r])
-  );
-  grid[2][2] = "FREE";
-  return grid;
-}
-
-function groupOf(n: number) {
-  return GROUPS[Math.min(Math.floor((n - 1) / 15), 4)];
-}
+import { GROUPS, TIMER_PRESETS, groupOf, generateBingoCard, patternLabel } from "@/lib/bingo";
+import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
+import { useHostGame } from "@/hooks/useHostGame";
+import { QRPanel } from "@/components/QRPanel";
+import { PlayerLobbyList } from "@/components/PlayerLobbyList";
+import { WinnerBanner } from "@/components/WinnerBanner";
+import type { BingoResultPayload } from "@/lib/gameChannel";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    IconToggle
@@ -88,13 +62,24 @@ function IconToggle({
 ───────────────────────────────────────────────────────────────────────────── */
 
 export default function BingoDashboard() {
-  /* ── State ─────────────────────────────────────────────────────────────── */
-  const [calledSet,    setCalledSet]    = useState<Set<number>>(new Set());
-  const [current,      setCurrent]      = useState<number | null>(null);
-  const [history,      setHistory]      = useState<number[]>([]);
-  const [pool,         setPool]         = useState<number[]>(() =>
-    Array.from({ length: 75 }, (_, i) => i + 1)
-  );
+  /* ── Game id + realtime state ─────────────────────────────────────────── */
+  const [gameId, setGameId] = useState("");
+  useEffect(() => setGameId(getOrCreateHostGameId()), []);
+
+  const {
+    phase, players, calledNumbers, currentNumber, winners, connected,
+    startGame, endGame, drawNumber, resetGame,
+  } = useHostGame(gameId);
+
+  const [joinUrl, setJoinUrl] = useState("");
+  useEffect(() => {
+    if (!gameId || typeof window === "undefined") return;
+    setJoinUrl(`${window.location.origin}/play?gameId=${gameId}`);
+  }, [gameId]);
+
+  const handleNewGame = () => setGameId(createNewHostGameId());
+
+  /* ── Local UI state ────────────────────────────────────────────────────── */
   const [autoOn,       setAutoOn]       = useState(false);
   const [musicOn,      setMusicOn]      = useState(false);
   const [ringOn,       setRingOn]       = useState(true);
@@ -102,12 +87,14 @@ export default function BingoDashboard() {
   const [autoInterval, setAutoInterval] = useState(10);
   const [customInput,  setCustomInput]  = useState("10");
   const [isPrinting,   setIsPrinting]   = useState(false);
+  const [activeAnnouncement, setActiveAnnouncement] = useState<BingoResultPayload | null>(null);
 
   /* ── Refs ──────────────────────────────────────────────────────────────── */
   const bgMusicRef   = useRef<HTMLAudioElement | null>(null);
   const drawRef      = useRef<() => void>(() => {});
   const musicOnRef   = useRef(false);
   const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const winnersSeenRef = useRef(0);
 
   /* ── Init bg music ─────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -147,12 +134,12 @@ export default function BingoDashboard() {
     }, stepMs);
   }, []);
 
-  /* ── Draw ──────────────────────────────────────────────────────────────── */
+  /* ── Draw (delegates number selection + broadcast to the realtime hook) ── */
   const draw = useCallback(() => {
-    if (busy || pool.length === 0) return;
+    if (busy) return;
+    const n = drawNumber();
+    if (n === null) return;
     setBusy(true);
-    const idx = Math.floor(Math.random() * pool.length);
-    const n   = pool[idx];
 
     if (ringOn) {
       const ring  = new Audio("/audio/ring.mp3");
@@ -175,28 +162,31 @@ export default function BingoDashboard() {
       setTimeout(restore, 6000);
     }, 500);
 
-    setCurrent(n);
-    setCalledSet(prev => { const s = new Set(prev); s.add(n); return s; });
-    setHistory(prev => [n, ...prev]);
-    setPool(prev => prev.filter((_, i) => i !== idx));
     setTimeout(() => setBusy(false), 900);
-  }, [busy, pool, ringOn, fadeBgMusic]);
+  }, [busy, ringOn, fadeBgMusic, drawNumber]);
 
   drawRef.current = draw;
 
   /* ── Auto mode ─────────────────────────────────────────────────────────── */
   useEffect(() => {
-    if (!autoOn || pool.length === 0) return;
+    if (!autoOn || calledNumbers.length >= 75) return;
     const t = setTimeout(() => drawRef.current(), autoInterval * 1000);
     return () => clearTimeout(t);
-  }, [autoOn, pool.length, current, autoInterval]);
+  }, [autoOn, calledNumbers.length, currentNumber, autoInterval]);
+
+  /* ── Winner banner (auto-dismiss) ──────────────────────────────────────── */
+  useEffect(() => {
+    if (winners.length > winnersSeenRef.current) {
+      winnersSeenRef.current = winners.length;
+      setActiveAnnouncement(winners[winners.length - 1]);
+      const t = setTimeout(() => setActiveAnnouncement(null), 6000);
+      return () => clearTimeout(t);
+    }
+  }, [winners]);
 
   /* ── Reset ─────────────────────────────────────────────────────────────── */
   const reset = () => {
-    setCalledSet(new Set());
-    setCurrent(null);
-    setHistory([]);
-    setPool(Array.from({ length: 75 }, (_, i) => i + 1));
+    resetGame();
     setAutoOn(false);
     setBusy(false);
   };
@@ -281,18 +271,86 @@ export default function BingoDashboard() {
   };
 
   /* ── Derived ───────────────────────────────────────────────────────────── */
+  const calledSet    = new Set(calledNumbers);
   const calledCount  = calledSet.size;
   const progress     = (calledCount / 75) * 100;
-  const currentGroup = current != null ? groupOf(current) : GROUPS[1];
+  const currentGroup = currentNumber != null ? groupOf(currentNumber) : GROUPS[1];
+  const history      = calledNumbers.slice(1, 8);
 
-  /* ─────────────────────────────────────────────────────────────────────────
-     Render
+  const ConnectionBadge = (
+    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+      <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-gray-300"}`} />
+      {connected ? "پەیوەستە" : "چاوەڕوانی پەیوەستبوون..."}
+    </div>
+  );
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     LOBBY PHASE
+  ═══════════════════════════════════════════════════════════════════════ */
+  if (phase === "LOBBY") {
+    return (
+      <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8 overflow-y-auto">
+        <div className="flex flex-col items-center gap-1">
+          <h1 className="text-2xl md:text-3xl font-black text-gray-800">داشبۆردی بینگۆ</h1>
+          {ConnectionBadge}
+        </div>
+
+        {gameId && joinUrl && <QRPanel gameId={gameId} joinUrl={joinUrl} />}
+
+        <PlayerLobbyList players={players} />
+
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={startGame}
+          className="bg-purple-600 hover:bg-purple-700 text-white font-black rounded-2xl px-8 py-3.5 text-lg shadow-[0_6px_24px_rgba(124,58,237,0.45)] cursor-pointer"
+        >
+          دەستپێکردنی یاری
+        </motion.button>
+
+        <button onClick={handleNewGame} className="text-xs text-gray-300 hover:text-gray-500 underline cursor-pointer">
+          دروستکردنی یاریی نوێ
+        </button>
+      </div>
+    );
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     ENDED PHASE
+  ═══════════════════════════════════════════════════════════════════════ */
+  if (phase === "ENDED") {
+    return (
+      <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8 overflow-y-auto">
+        <h1 className="text-2xl md:text-3xl font-black text-gray-800">یاری تەواو بوو 🎉</h1>
+        <div className="flex flex-col items-center gap-2 max-w-sm w-full">
+          {winners.length === 0 && <p className="text-gray-400 text-sm">هیچ براوەیەک نەبوو</p>}
+          {winners.map(w => (
+            <div key={w.playerId} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 w-full">
+              <span className="text-2xl">{w.emoji}</span>
+              <span className="font-bold text-gray-700 flex-1">{w.name}</span>
+              {w.pattern && <span className="text-xs text-amber-600 font-bold">{patternLabel(w.pattern)}</span>}
+            </div>
+          ))}
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+          onClick={resetGame}
+          className="bg-purple-600 hover:bg-purple-700 text-white font-black rounded-2xl px-8 py-3 shadow-lg cursor-pointer"
+        >
+          یاریی نوێ
+        </motion.button>
+      </div>
+    );
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     PLAYING PHASE
      Layout:  root = h-dvh flex-col
               top  = flex-none  (natural height)
               board = flex-1 min-h-0  (fills whatever remains)
               board rows = flex-1  (each gets exactly 1/5 of board height)
      This guarantees all 5 rows fit on ANY screen width × height.
-  ───────────────────────────────────────────────────────────────────────── */
+  ═══════════════════════════════════════════════════════════════════════ */
   return (
     <div
       dir="rtl"
@@ -301,6 +359,8 @@ export default function BingoDashboard() {
         px-2 md:px-3 pt-2 pb-1 overflow-x-hidden
       "
     >
+      <WinnerBanner announcement={activeAnnouncement} />
+
       {/* ════════════════════════════════════════════════════════════════════
           TOP SECTION — flex-none so it never compresses the board
           Mobile flex-col: Ball → Controls → Toggles
@@ -320,14 +380,14 @@ export default function BingoDashboard() {
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.93 }}
               onClick={draw}
-              disabled={busy || pool.length === 0}
+              disabled={busy || calledNumbers.length >= 75}
               className={`
                 bg-purple-600 text-white font-black rounded-2xl
                 shadow-[0_6px_24px_rgba(124,58,237,0.45)]
                 transition-colors duration-200
                 text-base md:text-xl xl:text-2xl
                 px-5 md:px-7 xl:px-9 py-2.5 md:py-3.5 xl:py-4
-                ${busy || pool.length === 0
+                ${busy || calledNumbers.length >= 75
                   ? "opacity-40 cursor-not-allowed"
                   : "hover:bg-purple-700 active:bg-purple-800 cursor-pointer"}
               `}
@@ -367,6 +427,19 @@ export default function BingoDashboard() {
               "
             >
               <RotateCcw size={18} strokeWidth={2.5} />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.12 }}
+              whileTap={{ scale: 0.88 }}
+              onClick={endGame}
+              title="کۆتایی یاری"
+              className="
+                w-10 h-10 flex-shrink-0 rounded-xl
+                bg-gray-100 hover:bg-amber-50 text-gray-400 hover:text-amber-500
+                flex items-center justify-center transition-colors duration-200
+              "
+            >
+              <Flag size={16} strokeWidth={2.5} />
             </motion.button>
           </div>
 
@@ -417,6 +490,12 @@ export default function BingoDashboard() {
 
         {/* ── BALL ── */}
         <div className="order-1 md:order-2 flex flex-col items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <Users size={12} strokeWidth={2.5} />
+            <span className="text-xs font-bold">{players.length}</span>
+            {ConnectionBadge}
+          </div>
+
           <div className="relative">
             {/* Breathing glow */}
             <motion.div
@@ -452,9 +531,9 @@ export default function BingoDashboard() {
             >
               <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
               <AnimatePresence mode="wait">
-                {current != null ? (
+                {currentNumber != null ? (
                   <motion.div
-                    key={current}
+                    key={currentNumber}
                     initial={{ opacity: 0, scale: 0.35, y: 30  }}
                     animate={{ opacity: 1, scale: 1,    y: 0   }}
                     exit={  { opacity: 0, scale: 1.4,   y: -30 }}
@@ -466,10 +545,10 @@ export default function BingoDashboard() {
                       drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)]
                       text-[2.8rem] sm:text-[3.5rem] md:text-[4.2rem] lg:text-[5.5rem] xl:text-[6.5rem] 2xl:text-[5.5rem]
                     ">
-                      {current}
+                      {currentNumber}
                     </span>
                     <span className="text-yellow-300 font-black -mt-1 text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-6xl">
-                      {groupOf(current).letter}
+                      {groupOf(currentNumber).letter}
                     </span>
                   </motion.div>
                 ) : (
@@ -494,12 +573,12 @@ export default function BingoDashboard() {
 
           {/* History strip */}
           <AnimatePresence>
-            {history.length > 1 && (
+            {history.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
                 className="flex items-center gap-1" dir="ltr"
               >
-                {history.slice(1, 8).map((n, i) => {
+                {history.map((n, i) => {
                   const g = groupOf(n);
                   return (
                     <motion.div
@@ -518,7 +597,7 @@ export default function BingoDashboard() {
 
           {/* Celebration */}
           <AnimatePresence>
-            {pool.length === 0 && (
+            {calledNumbers.length === 75 && (
               <motion.p
                 initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
                 transition={{ type: "spring", stiffness: 350, damping: 20 }}
@@ -570,7 +649,7 @@ export default function BingoDashboard() {
               {Array.from({ length: 15 }, (_, i) => {
                 const n      = group.start + i;
                 const called = calledSet.has(n);
-                const isCurr = n === current;
+                const isCurr = n === currentNumber;
                 return (
                   <motion.div
                     key={n}
