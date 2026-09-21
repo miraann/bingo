@@ -15,6 +15,7 @@ import {
   ZapOff,
   Eye,
   EyeOff,
+  Trophy,
 } from "lucide-react";
 import { GROUPS, TIMER_PRESETS, groupOf, generateBingoCard, patternLabel } from "@/lib/bingo";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
@@ -51,13 +52,14 @@ function IconToggle({
       whileTap={{ scale: 0.92 }}
       onClick={onClick}
       className={`
-        flex flex-col items-center gap-1 px-4 py-2 md:px-5 md:py-2.5
+        flex flex-col items-center justify-center gap-1
+        w-20 md:w-24 min-h-[60px] md:min-h-[68px] px-1.5 py-2
         rounded-2xl cursor-pointer select-none transition-all duration-200
         ${active ? activeClass : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600"}
       `}
     >
-      <Icon size={22} strokeWidth={2} />
-      <span className="text-[11px] font-bold tracking-wide">{label}</span>
+      <Icon size={20} strokeWidth={2} />
+      <span className="text-[10px] font-bold tracking-wide text-center leading-tight whitespace-normal">{label}</span>
     </motion.button>
   );
 }
@@ -402,6 +404,12 @@ export default function BingoDashboard() {
             >
               ڕاکێشانی تۆپ
             </motion.button>
+            <IconToggle
+              activeIcon={Pause} inactiveIcon={Play}
+              label="خۆکار" active={autoOn}
+              onClick={() => setAutoOn(v => !v)}
+              activeClass="bg-purple-600 text-white shadow-[0_4px_14px_rgba(124,58,237,0.40)]"
+            />
             <motion.button
               whileHover={{ scale: 1.12 }}
               whileTap={{ scale: 0.88 }}
@@ -451,12 +459,58 @@ export default function BingoDashboard() {
             </motion.button>
           </div>
 
-          <IconToggle
-            activeIcon={Pause} inactiveIcon={Play}
-            label="خۆکار" active={autoOn}
-            onClick={() => setAutoOn(v => !v)}
-            activeClass="bg-purple-600 text-white shadow-[0_4px_14px_rgba(124,58,237,0.40)]"
-          />
+          {/* Winners */}
+          {winners.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-xs">
+              {winners.map((w, i) =>
+                i === 0 ? (
+                  <motion.div
+                    key={w.playerId}
+                    initial={{ opacity: 0, scale: 0.5, y: -8 }}
+                    animate={{
+                      opacity: 1, y: 0,
+                      scale: [1, 1.08, 1],
+                      boxShadow: [
+                        "0 0 0 0 rgba(245,158,11,0.45)",
+                        "0 0 0 7px rgba(245,158,11,0)",
+                        "0 0 0 0 rgba(245,158,11,0)",
+                      ],
+                    }}
+                    transition={{
+                      opacity: { duration: 0.3 },
+                      y: { duration: 0.3 },
+                      scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
+                      boxShadow: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
+                    }}
+                    className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full pr-2.5 pl-1.5 py-1"
+                  >
+                    <motion.span
+                      animate={{ rotate: [0, -14, 14, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      className="w-5 h-5 flex items-center justify-center flex-shrink-0"
+                    >
+                      <Trophy size={14} className="text-white" strokeWidth={2.5} />
+                    </motion.span>
+                    <span className="text-xs font-black text-white whitespace-nowrap">
+                      {w.emoji} {w.name}
+                    </span>
+                  </motion.div>
+                ) : (
+                  <div
+                    key={w.playerId}
+                    className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full pr-2.5 pl-1.5 py-1"
+                  >
+                    <span className="w-5 h-5 rounded-full bg-amber-400 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">
+                      #{i + 1}
+                    </span>
+                    <span className="text-xs font-bold text-amber-700 whitespace-nowrap">
+                      {w.emoji} {w.name}
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          )}
 
           {/* Timer settings */}
           <div className="flex flex-col items-center gap-1.5">
@@ -568,15 +622,15 @@ export default function BingoDashboard() {
           </div>
 
           {/* Progress */}
-          <div className="flex items-center gap-2 w-40 sm:w-48 md:w-56 lg:w-64 xl:w-72 2xl:w-64" dir="ltr">
-            <span className="text-gray-500 text-xs font-mono w-5 text-right tabular-nums">{calledCount}</span>
-            <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div className="flex items-center gap-3 w-52 sm:w-60 md:w-72 lg:w-80 xl:w-96 2xl:w-80" dir="ltr">
+            <span className="text-gray-500 text-base md:text-lg font-mono w-7 text-right tabular-nums">{calledCount}</span>
+            <div className="flex-1 h-3.5 md:h-4 bg-gray-200 rounded-full overflow-hidden">
               <motion.div
                 className="h-full rounded-full bg-gradient-to-r from-purple-500 to-red-500"
                 animate={{ width: `${progress}%` }} transition={{ duration: 0.4 }}
               />
             </div>
-            <span className="text-gray-400 text-xs font-mono">75</span>
+            <span className="text-gray-400 text-base md:text-lg font-mono">75</span>
           </div>
 
           {/* History strip */}
@@ -584,7 +638,7 @@ export default function BingoDashboard() {
             {history.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-1" dir="ltr"
+                className="flex items-center gap-1.5" dir="ltr"
               >
                 {history.map((n, i) => {
                   const g = groupOf(n);
@@ -593,7 +647,7 @@ export default function BingoDashboard() {
                       key={`h-${n}-${i}`}
                       initial={{ opacity: 0, scale: 0.7 }}
                       animate={{ opacity: Math.max(0.2, 1 - i * 0.13), scale: 1 }}
-                      className={`w-7 h-7 rounded-md ${g.calledBg} text-white flex items-center justify-center text-xs font-black shadow-sm`}
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg ${g.calledBg} text-white flex items-center justify-center text-sm sm:text-base font-black shadow-sm`}
                     >
                       {n}
                     </motion.div>
