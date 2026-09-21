@@ -26,13 +26,16 @@ export function QuizAnswerButtons({
   const revealed = correctAnswer !== null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md">
+    <div className={`grid gap-3 w-full ${revealed ? "grid-cols-1 justify-items-center max-w-lg" : "grid-cols-1 sm:grid-cols-2 max-w-md"}`}>
       {options.map((opt, i) => {
         const color = OPTION_COLORS[i % OPTION_COLORS.length];
         const isSelected = selectedAnswer === i;
         const isCorrect = revealed && i === correctAnswer;
         const isWrongSelected = revealed && isSelected && i !== correctAnswer;
         const interactive = !disabled && !!onSelect;
+
+        // On reveal, only the correct answer (and the player's own wrong pick, if any) stay visible.
+        if (revealed && !isCorrect && !isWrongSelected) return null;
 
         const borderClass = isCorrect
           ? "border-green-400"
@@ -51,16 +54,17 @@ export function QuizAnswerButtons({
             disabled={!interactive}
             onClick={() => onSelect?.(i)}
             className={`
-              relative flex items-center justify-center gap-2
-              rounded-2xl px-4 py-6 text-white font-black text-base sm:text-lg text-center
+              relative flex items-center justify-center gap-2 w-full
+              rounded-2xl text-white font-black text-center
               shadow-lg transition-all duration-200 border-4
+              ${isCorrect ? "px-6 py-8 text-xl sm:text-2xl" : "px-4 py-6 text-base sm:text-lg"}
               ${color.bg} ${interactive ? `${color.hover} cursor-pointer` : ""}
               ${revealed && !isCorrect && !isWrongSelected ? "opacity-40" : ""}
               ${borderClass}
-              ${isCorrect ? "scale-[1.03]" : ""}
+              ${isCorrect ? "scale-[1.05]" : ""}
             `}
           >
-            {isCorrect && <Check size={20} strokeWidth={3} />}
+            {isCorrect && <Check size={28} strokeWidth={3} />}
             {isWrongSelected && <X size={20} strokeWidth={3} />}
             <span>{opt}</span>
           </motion.button>
