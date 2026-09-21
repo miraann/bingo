@@ -19,6 +19,7 @@ interface PersistedHostState {
   phase: GamePhase;
   calledNumbers: number[];
   currentNumber: number | null;
+  autoMarkEnabled: boolean;
 }
 
 function storageKey(gameId: string) {
@@ -47,11 +48,20 @@ function savePersisted(gameId: string, state: PersistedHostState) {
  *  channel, and validates bingo claims against its own state. */
 export function useHostGame(gameId: string) {
   const persisted = useRef<PersistedHostState | null>(null);
-  if (persisted.current === null) persisted.current = loadPersisted(gameId) ?? { phase: "LOBBY", calledNumbers: [], currentNumber: null };
+  if (persisted.current === null) {
+    const loaded = loadPersisted(gameId);
+    persisted.current = {
+      phase: loaded?.phase ?? "LOBBY",
+      calledNumbers: loaded?.calledNumbers ?? [],
+      currentNumber: loaded?.currentNumber ?? null,
+      autoMarkEnabled: loaded?.autoMarkEnabled ?? true,
+    };
+  }
 
   const [phase, setPhase] = useState<GamePhase>(persisted.current.phase);
   const [calledNumbers, setCalledNumbers] = useState<number[]>(persisted.current.calledNumbers);
   const [currentNumber, setCurrentNumber] = useState<number | null>(persisted.current.currentNumber);
+  const [autoMarkEnabled, setAutoMarkEnabled] = useState<boolean>(persisted.current.autoMarkEnabled);
   const [players, setPlayers] = useState<PlayerPresence[]>([]);
   const [winners, setWinners] = useState<BingoResultPayload[]>([]);
   const [connected, setConnected] = useState(false);
@@ -61,14 +71,16 @@ export function useHostGame(gameId: string) {
   const calledSetRef = useRef<Set<number>>(new Set(calledNumbers));
   const phaseRef = useRef(phase);
   const currentNumberRef = useRef(currentNumber);
+  const autoMarkEnabledRef = useRef(autoMarkEnabled);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { currentNumberRef.current = currentNumber; }, [currentNumber]);
+  useEffect(() => { autoMarkEnabledRef.current = autoMarkEnabled; }, [autoMarkEnabled]);
   useEffect(() => {
     calledListRef.current = calledNumbers;
     calledSetRef.current = new Set(calledNumbers);
-    savePersisted(gameId, { phase, calledNumbers, currentNumber });
-  }, [gameId, phase, calledNumbers, currentNumber]);
+    savePersisted(gameId, { phase, calledNumbers, currentNumber, autoMarkEnabled });
+  }, [gameId, phase, calledNumbers, currentNumber, autoMarkEnabled]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -98,6 +110,7 @@ export function useHostGame(gameId: string) {
           phase: phaseRef.current,
           calledNumbers: calledListRef.current,
           currentNumber: currentNumberRef.current,
+          autoMarkEnabled: autoMarkEnabledRef.current,
         },
       });
     });
@@ -148,6 +161,18 @@ export function useHostGame(gameId: string) {
     });
   }, []);
 
+  const toggleAutoMark = useCallback(() => {
+    setAutoMarkEnabled(prev => {
+      const next = !prev;
+      channelRef.current?.send({
+        type: "broadcast",
+        event: GAME_EVENTS.autoMarkChanged,
+        payload: { enabled: next },
+      });
+      return next;
+    });
+  }, []);
+
   const drawNumber = useCallback((): number | null => {
     const currentSet = calledSetRef.current;
     if (currentSet.size >= 75) return null;
@@ -186,6 +211,8 @@ export function useHostGame(gameId: string) {
     currentNumber,
     winners,
     connected,
+    autoMarkEnabled,
+    toggleAutoMark,
     startGame,
     endGame,
     drawNumber,

@@ -8,6 +8,7 @@ import { generatePlayerId } from "@/lib/id";
 import {
   GAME_EVENTS,
   gameChannelName,
+  type AutoMarkChangedPayload,
   type BingoResultPayload,
   type GamePhase,
   type NumberDrawnPayload,
@@ -55,16 +56,16 @@ export function usePlayerGame(gameId: string) {
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
   const [currentNumber, setCurrentNumber] = useState<number | null>(null);
   const [marked, setMarked] = useState<Set<number>>(new Set());
-  const [autoMark, setAutoMark] = useState(true);
+  const [autoMarkEnabled, setAutoMarkEnabled] = useState(true);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>("idle");
   const [announcements, setAnnouncements] = useState<BingoResultPayload[]>([]);
   const [connected, setConnected] = useState(false);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const playerRef = useRef(player);
-  const autoMarkRef = useRef(autoMark);
+  const autoMarkEnabledRef = useRef(autoMarkEnabled);
   useEffect(() => { playerRef.current = player; }, [player]);
-  useEffect(() => { autoMarkRef.current = autoMark; }, [autoMark]);
+  useEffect(() => { autoMarkEnabledRef.current = autoMarkEnabled; }, [autoMarkEnabled]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -78,7 +79,7 @@ export function usePlayerGame(gameId: string) {
     channel.on("broadcast", { event: GAME_EVENTS.numberDrawn }, ({ payload }: { payload: NumberDrawnPayload }) => {
       setCalledNumbers(payload.calledNumbers);
       setCurrentNumber(payload.number);
-      if (autoMarkRef.current) setMarked(prev => new Set(prev).add(payload.number));
+      if (autoMarkEnabledRef.current) setMarked(prev => new Set(prev).add(payload.number));
       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(60);
     });
 
@@ -86,10 +87,15 @@ export function usePlayerGame(gameId: string) {
       setPhase(payload.phase);
     });
 
+    channel.on("broadcast", { event: GAME_EVENTS.autoMarkChanged }, ({ payload }: { payload: AutoMarkChangedPayload }) => {
+      setAutoMarkEnabled(payload.enabled);
+    });
+
     channel.on("broadcast", { event: GAME_EVENTS.stateSync }, ({ payload }: { payload: StateSyncPayload }) => {
       setPhase(payload.phase);
       setCalledNumbers(payload.calledNumbers);
       setCurrentNumber(payload.currentNumber);
+      setAutoMarkEnabled(payload.autoMarkEnabled);
     });
 
     channel.on("broadcast", { event: GAME_EVENTS.gameReset }, () => {
@@ -172,8 +178,7 @@ export function usePlayerGame(gameId: string) {
     calledSet,
     currentNumber,
     marked,
-    autoMark,
-    setAutoMark,
+    autoMarkEnabled,
     claimStatus,
     setClaimStatus,
     announcements,

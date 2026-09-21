@@ -11,10 +11,13 @@ import {
   Printer,
   Users,
   Flag,
+  Zap,
+  ZapOff,
 } from "lucide-react";
 import { GROUPS, TIMER_PRESETS, groupOf, generateBingoCard, patternLabel } from "@/lib/bingo";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { useHostGame } from "@/hooks/useHostGame";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { QRPanel } from "@/components/QRPanel";
 import { PlayerLobbyList } from "@/components/PlayerLobbyList";
 import { WinnerBanner } from "@/components/WinnerBanner";
@@ -62,12 +65,15 @@ function IconToggle({
 ───────────────────────────────────────────────────────────────────────────── */
 
 export default function BingoDashboard() {
+  useWakeLock();
+
   /* ── Game id + realtime state ─────────────────────────────────────────── */
   const [gameId, setGameId] = useState("");
   useEffect(() => setGameId(getOrCreateHostGameId()), []);
 
   const {
     phase, players, calledNumbers, currentNumber, winners, connected,
+    autoMarkEnabled, toggleAutoMark,
     startGame, endGame, drawNumber, resetGame,
   } = useHostGame(gameId);
 
@@ -620,6 +626,11 @@ export default function BingoDashboard() {
             activeIcon={Bell} inactiveIcon={BellOff} label="زەنگ" active={ringOn}
             onClick={() => setRingOn(v => !v)}
             activeClass="bg-amber-500 text-white shadow-[0_4px_14px_rgba(245,158,11,0.40)]"
+          />
+          <IconToggle
+            activeIcon={Zap} inactiveIcon={ZapOff} label="خۆکار نیشانکردن" active={autoMarkEnabled}
+            onClick={toggleAutoMark}
+            activeClass="bg-blue-500 text-white shadow-[0_4px_14px_rgba(59,130,246,0.40)]"
           />
         </div>
       </div>

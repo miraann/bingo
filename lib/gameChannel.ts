@@ -13,6 +13,7 @@ export interface StateSyncPayload {
   phase: GamePhase;
   calledNumbers: number[];
   currentNumber: number | null;
+  autoMarkEnabled: boolean;
 }
 
 export interface NumberDrawnPayload {
@@ -23,6 +24,10 @@ export interface NumberDrawnPayload {
 
 export interface PhaseChangedPayload {
   phase: GamePhase;
+}
+
+export interface AutoMarkChangedPayload {
+  enabled: boolean;
 }
 
 export interface BingoClaimPayload {
@@ -45,6 +50,7 @@ export const GAME_EVENTS = {
   stateSync: "state-sync",
   numberDrawn: "number-drawn",
   phaseChanged: "phase-changed",
+  autoMarkChanged: "auto-mark-changed",
   gameReset: "game-reset",
   bingoClaim: "bingo-claim",
   bingoResult: "bingo-result",

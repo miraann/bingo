@@ -3,14 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, X } from "lucide-react";
+import { Check, X, Zap, ZapOff } from "lucide-react";
 import { usePlayerGame } from "@/hooks/usePlayerGame";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { PlayerBingoCard } from "@/components/PlayerBingoCard";
 import { WinnerBanner } from "@/components/WinnerBanner";
 import { patternLabel } from "@/lib/bingo";
 
 export function PlayClient() {
+  useWakeLock();
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlGameId = (searchParams.get("gameId") ?? "").toUpperCase();
@@ -21,7 +24,7 @@ export function PlayClient() {
 
   const gameId = urlGameId;
   const {
-    player, phase, calledSet, currentNumber, marked, autoMark, setAutoMark,
+    player, phase, calledSet, currentNumber, marked, autoMarkEnabled,
     claimStatus, setClaimStatus, announcements, connected, join, toggleMark, claimBingo,
   } = usePlayerGame(gameId);
 
@@ -139,14 +142,14 @@ export function PlayClient() {
         <span className="font-bold text-gray-700 flex items-center gap-1.5">
           <span className="text-xl">{player.emoji}</span>{player.name}
         </span>
-        <button
-          onClick={() => setAutoMark(v => !v)}
-          className={`text-[11px] font-bold rounded-full px-3 py-1.5 cursor-pointer transition-colors ${
-            autoMark ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
+        <span
+          className={`flex items-center gap-1 text-[11px] font-bold rounded-full px-3 py-1.5 ${
+            autoMarkEnabled ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
           }`}
         >
-          خۆکار نیشانکردن {autoMark ? "چالاک" : "ناچالاک"}
-        </button>
+          {autoMarkEnabled ? <Zap size={12} /> : <ZapOff size={12} />}
+          {autoMarkEnabled ? "خۆکار نیشانکردن چالاکە" : "خۆت ژمارەکان نیشان بکە"}
+        </span>
       </div>
 
       {currentNumber != null && (
