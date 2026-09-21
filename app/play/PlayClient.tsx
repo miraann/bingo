@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, X, Zap, ZapOff } from "lucide-react";
+import { Check, X, Zap, ZapOff, Eye, EyeOff } from "lucide-react";
 import { usePlayerGame } from "@/hooks/usePlayerGame";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { EmojiPicker } from "@/components/EmojiPicker";
@@ -24,7 +24,7 @@ export function PlayClient() {
 
   const gameId = urlGameId;
   const {
-    player, phase, calledSet, currentNumber, marked, autoMarkEnabled,
+    player, phase, calledSet, currentNumber, marked, autoMarkEnabled, highlightCurrent,
     claimStatus, setClaimStatus, announcements, connected, join, toggleMark, claimBingo,
   } = usePlayerGame(gameId);
 
@@ -142,15 +142,31 @@ export function PlayClient() {
         <span className="font-bold text-gray-700 flex items-center gap-1.5">
           <span className="text-xl">{player.emoji}</span>{player.name}
         </span>
-        <span
-          className={`flex items-center gap-1 text-[11px] font-bold rounded-full px-3 py-1.5 ${
-            autoMarkEnabled ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
-          }`}
-        >
-          {autoMarkEnabled ? <Zap size={12} /> : <ZapOff size={12} />}
-          {autoMarkEnabled ? "خۆکار نیشانکردن چالاکە" : "خۆت ژمارەکان نیشان بکە"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`flex items-center gap-1 text-[10px] font-bold rounded-full px-2.5 py-1 ${
+              autoMarkEnabled ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            {autoMarkEnabled ? <Zap size={11} /> : <ZapOff size={11} />}
+            {autoMarkEnabled ? "خۆکار" : "دەستی"}
+          </span>
+          <span
+            className={`flex items-center gap-1 text-[10px] font-bold rounded-full px-2.5 py-1 ${
+              highlightCurrent ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            {highlightCurrent ? <Eye size={11} /> : <EyeOff size={11} />}
+            {highlightCurrent ? "ڕوونکردنەوە" : "بێ یارمەتی"}
+          </span>
+        </div>
       </div>
+
+      {!autoMarkEnabled && !highlightCurrent && (
+        <p className="text-xs text-amber-600 font-bold -mt-2">
+          پێویستە بە خۆت ژمارەکان لە کارتەکەت بدۆزیتەوە و دایبنێیت
+        </p>
+      )}
 
       {currentNumber != null && (
         <motion.div
@@ -168,6 +184,7 @@ export function PlayClient() {
         calledSet={calledSet}
         marked={marked}
         currentNumber={currentNumber}
+        highlightCurrent={highlightCurrent}
         onToggle={toggleMark}
       />
 

@@ -13,6 +13,8 @@ import {
   Flag,
   Zap,
   ZapOff,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { GROUPS, TIMER_PRESETS, groupOf, generateBingoCard, patternLabel } from "@/lib/bingo";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
@@ -73,7 +75,7 @@ export default function BingoDashboard() {
 
   const {
     phase, players, calledNumbers, currentNumber, winners, connected,
-    autoMarkEnabled, toggleAutoMark,
+    autoMarkEnabled, toggleAutoMark, highlightCurrent, toggleHighlightCurrent,
     startGame, endGame, drawNumber, resetGame,
   } = useHostGame(gameId);
 
@@ -631,6 +633,11 @@ export default function BingoDashboard() {
             activeIcon={Zap} inactiveIcon={ZapOff} label="خۆکار نیشانکردن" active={autoMarkEnabled}
             onClick={toggleAutoMark}
             activeClass="bg-blue-500 text-white shadow-[0_4px_14px_rgba(59,130,246,0.40)]"
+          />
+          <IconToggle
+            activeIcon={Eye} inactiveIcon={EyeOff} label="دیاریکردنی ژمارە" active={highlightCurrent}
+            onClick={toggleHighlightCurrent}
+            activeClass="bg-indigo-500 text-white shadow-[0_4px_14px_rgba(99,102,241,0.40)]"
           />
         </div>
       </div>

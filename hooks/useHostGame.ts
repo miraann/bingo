@@ -20,6 +20,7 @@ interface PersistedHostState {
   calledNumbers: number[];
   currentNumber: number | null;
   autoMarkEnabled: boolean;
+  highlightCurrent: boolean;
 }
 
 function storageKey(gameId: string) {
@@ -55,6 +56,7 @@ export function useHostGame(gameId: string) {
       calledNumbers: loaded?.calledNumbers ?? [],
       currentNumber: loaded?.currentNumber ?? null,
       autoMarkEnabled: loaded?.autoMarkEnabled ?? true,
+      highlightCurrent: loaded?.highlightCurrent ?? true,
     };
   }
 
@@ -62,6 +64,7 @@ export function useHostGame(gameId: string) {
   const [calledNumbers, setCalledNumbers] = useState<number[]>(persisted.current.calledNumbers);
   const [currentNumber, setCurrentNumber] = useState<number | null>(persisted.current.currentNumber);
   const [autoMarkEnabled, setAutoMarkEnabled] = useState<boolean>(persisted.current.autoMarkEnabled);
+  const [highlightCurrent, setHighlightCurrent] = useState<boolean>(persisted.current.highlightCurrent);
   const [players, setPlayers] = useState<PlayerPresence[]>([]);
   const [winners, setWinners] = useState<BingoResultPayload[]>([]);
   const [connected, setConnected] = useState(false);
@@ -72,15 +75,17 @@ export function useHostGame(gameId: string) {
   const phaseRef = useRef(phase);
   const currentNumberRef = useRef(currentNumber);
   const autoMarkEnabledRef = useRef(autoMarkEnabled);
+  const highlightCurrentRef = useRef(highlightCurrent);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { currentNumberRef.current = currentNumber; }, [currentNumber]);
   useEffect(() => { autoMarkEnabledRef.current = autoMarkEnabled; }, [autoMarkEnabled]);
+  useEffect(() => { highlightCurrentRef.current = highlightCurrent; }, [highlightCurrent]);
   useEffect(() => {
     calledListRef.current = calledNumbers;
     calledSetRef.current = new Set(calledNumbers);
-    savePersisted(gameId, { phase, calledNumbers, currentNumber, autoMarkEnabled });
-  }, [gameId, phase, calledNumbers, currentNumber, autoMarkEnabled]);
+    savePersisted(gameId, { phase, calledNumbers, currentNumber, autoMarkEnabled, highlightCurrent });
+  }, [gameId, phase, calledNumbers, currentNumber, autoMarkEnabled, highlightCurrent]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -111,6 +116,7 @@ export function useHostGame(gameId: string) {
           calledNumbers: calledListRef.current,
           currentNumber: currentNumberRef.current,
           autoMarkEnabled: autoMarkEnabledRef.current,
+          highlightCurrent: highlightCurrentRef.current,
         },
       });
     });
@@ -173,6 +179,18 @@ export function useHostGame(gameId: string) {
     });
   }, []);
 
+  const toggleHighlightCurrent = useCallback(() => {
+    setHighlightCurrent(prev => {
+      const next = !prev;
+      channelRef.current?.send({
+        type: "broadcast",
+        event: GAME_EVENTS.highlightChanged,
+        payload: { enabled: next },
+      });
+      return next;
+    });
+  }, []);
+
   const drawNumber = useCallback((): number | null => {
     const currentSet = calledSetRef.current;
     if (currentSet.size >= 75) return null;
@@ -213,6 +231,8 @@ export function useHostGame(gameId: string) {
     connected,
     autoMarkEnabled,
     toggleAutoMark,
+    highlightCurrent,
+    toggleHighlightCurrent,
     startGame,
     endGame,
     drawNumber,

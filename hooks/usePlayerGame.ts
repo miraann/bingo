@@ -8,12 +8,12 @@ import { generatePlayerId } from "@/lib/id";
 import {
   GAME_EVENTS,
   gameChannelName,
-  type AutoMarkChangedPayload,
   type BingoResultPayload,
   type GamePhase,
   type NumberDrawnPayload,
   type PhaseChangedPayload,
   type StateSyncPayload,
+  type ToggleChangedPayload,
 } from "@/lib/gameChannel";
 
 interface PersistedPlayer {
@@ -57,6 +57,7 @@ export function usePlayerGame(gameId: string) {
   const [currentNumber, setCurrentNumber] = useState<number | null>(null);
   const [marked, setMarked] = useState<Set<number>>(new Set());
   const [autoMarkEnabled, setAutoMarkEnabled] = useState(true);
+  const [highlightCurrent, setHighlightCurrent] = useState(true);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>("idle");
   const [announcements, setAnnouncements] = useState<BingoResultPayload[]>([]);
   const [connected, setConnected] = useState(false);
@@ -87,8 +88,12 @@ export function usePlayerGame(gameId: string) {
       setPhase(payload.phase);
     });
 
-    channel.on("broadcast", { event: GAME_EVENTS.autoMarkChanged }, ({ payload }: { payload: AutoMarkChangedPayload }) => {
+    channel.on("broadcast", { event: GAME_EVENTS.autoMarkChanged }, ({ payload }: { payload: ToggleChangedPayload }) => {
       setAutoMarkEnabled(payload.enabled);
+    });
+
+    channel.on("broadcast", { event: GAME_EVENTS.highlightChanged }, ({ payload }: { payload: ToggleChangedPayload }) => {
+      setHighlightCurrent(payload.enabled);
     });
 
     channel.on("broadcast", { event: GAME_EVENTS.stateSync }, ({ payload }: { payload: StateSyncPayload }) => {
@@ -96,6 +101,7 @@ export function usePlayerGame(gameId: string) {
       setCalledNumbers(payload.calledNumbers);
       setCurrentNumber(payload.currentNumber);
       setAutoMarkEnabled(payload.autoMarkEnabled);
+      setHighlightCurrent(payload.highlightCurrent);
     });
 
     channel.on("broadcast", { event: GAME_EVENTS.gameReset }, () => {
@@ -179,6 +185,7 @@ export function usePlayerGame(gameId: string) {
     currentNumber,
     marked,
     autoMarkEnabled,
+    highlightCurrent,
     claimStatus,
     setClaimStatus,
     announcements,

@@ -14,6 +14,7 @@ export interface StateSyncPayload {
   calledNumbers: number[];
   currentNumber: number | null;
   autoMarkEnabled: boolean;
+  highlightCurrent: boolean;
 }
 
 export interface NumberDrawnPayload {
@@ -26,7 +27,9 @@ export interface PhaseChangedPayload {
   phase: GamePhase;
 }
 
-export interface AutoMarkChangedPayload {
+/** Shared shape for any simple host-controlled on/off broadcast (auto-mark,
+ *  highlight-current, ...). */
+export interface ToggleChangedPayload {
   enabled: boolean;
 }
 
@@ -51,6 +54,7 @@ export const GAME_EVENTS = {
   numberDrawn: "number-drawn",
   phaseChanged: "phase-changed",
   autoMarkChanged: "auto-mark-changed",
+  highlightChanged: "highlight-changed",
   gameReset: "game-reset",
   bingoClaim: "bingo-claim",
   bingoResult: "bingo-result",
