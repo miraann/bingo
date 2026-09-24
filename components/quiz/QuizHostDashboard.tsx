@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pause, Play } from "lucide-react";
 import { TIMER_PRESETS } from "@/lib/bingo";
-import { getOrCreateQuizHostGameId, createNewQuizHostGameId } from "@/lib/id";
+import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { listQuizTopics } from "@/lib/quizLoader";
 import { useQuizHost } from "@/hooks/useQuizHost";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { useBroadcastHostMode } from "@/hooks/useHostMode";
 import { QRPanel } from "@/components/QRPanel";
 import { PlayerLobbyList } from "@/components/PlayerLobbyList";
 import { GameModeToggle, type HostMode } from "@/components/GameModeSelector";
@@ -27,7 +28,8 @@ export function QuizHostDashboard({
   useWakeLock();
 
   const [gameId, setGameId] = useState("");
-  useEffect(() => setGameId(getOrCreateQuizHostGameId()), []);
+  useEffect(() => setGameId(getOrCreateHostGameId()), []);
+  useBroadcastHostMode(gameId, "quiz");
 
   const {
     phase, players, connected, topicKey, setTopic,
@@ -42,10 +44,10 @@ export function QuizHostDashboard({
   const [joinUrl, setJoinUrl] = useState("");
   useEffect(() => {
     if (!gameId || typeof window === "undefined") return;
-    setJoinUrl(`${window.location.origin}/play?gameId=${gameId}&mode=quiz`);
+    setJoinUrl(`${window.location.origin}/play?gameId=${gameId}`);
   }, [gameId]);
 
-  const handleNewGame = () => { resetQuiz(); setGameId(createNewQuizHostGameId()); };
+  const handleNewGame = () => { resetQuiz(); setGameId(createNewHostGameId()); };
 
   const topics = listQuizTopics();
   const prevPhaseRef = useRef(phase);

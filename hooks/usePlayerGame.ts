@@ -5,6 +5,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { generateBingoCard, type BingoCard } from "@/lib/bingo";
 import { generatePlayerId } from "@/lib/id";
+import { loadPlayerProfile, savePlayerProfile } from "@/lib/playerProfile";
 import {
   GAME_EVENTS,
   gameChannelName,
@@ -33,10 +34,14 @@ function loadPersisted(gameId: string): PersistedPlayer | null {
   if (typeof window === "undefined" || !gameId) return null;
   try {
     const raw = window.localStorage.getItem(storageKey(gameId));
-    return raw ? (JSON.parse(raw) as PersistedPlayer) : null;
-  } catch {
-    return null;
-  }
+    if (raw) return JSON.parse(raw) as PersistedPlayer;
+  } catch {}
+  // Already registered for this game code in the quiz — reuse that identity.
+  const profile = loadPlayerProfile(gameId);
+  if (!profile) return null;
+  const fromProfile: PersistedPlayer = { ...profile, card: generateBingoCard() };
+  savePersisted(gameId, fromProfile);
+  return fromProfile;
 }
 
 function savePersisted(gameId: string, p: PersistedPlayer) {
@@ -147,6 +152,7 @@ export function usePlayerGame(gameId: string) {
     const newPlayer: PersistedPlayer = { playerId, name: name.trim(), emoji, card };
     initialPlayer.current = newPlayer;
     savePersisted(gameId, newPlayer);
+    savePlayerProfile(gameId, newPlayer);
     setPlayer(newPlayer);
     setMarked(new Set());
     channelRef.current?.track({ playerId, name: newPlayer.name, emoji, joinedAt: Date.now() });

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { generatePlayerId } from "@/lib/id";
+import { loadPlayerProfile, savePlayerProfile } from "@/lib/playerProfile";
 import type { PublicQuizQuestion } from "@/lib/quizLoader";
 import {
   QUIZ_EVENTS,
@@ -34,10 +35,10 @@ function loadPersisted(gameId: string): PersistedPlayer | null {
   if (typeof window === "undefined" || !gameId) return null;
   try {
     const raw = window.localStorage.getItem(storageKey(gameId));
-    return raw ? (JSON.parse(raw) as PersistedPlayer) : null;
-  } catch {
-    return null;
-  }
+    if (raw) return JSON.parse(raw) as PersistedPlayer;
+  } catch {}
+  // Already registered for this game code in bingo — reuse that identity.
+  return loadPlayerProfile(gameId);
 }
 
 function savePersisted(gameId: string, p: PersistedPlayer) {
@@ -162,6 +163,7 @@ export function useQuizPlayer(gameId: string) {
     const newPlayer: PersistedPlayer = { playerId, name: name.trim(), emoji };
     initialPlayer.current = newPlayer;
     savePersisted(gameId, newPlayer);
+    savePlayerProfile(gameId, newPlayer);
     setPlayer(newPlayer);
     channelRef.current?.track({ playerId, name: newPlayer.name, emoji, joinedAt: Date.now() });
   }, [gameId]);

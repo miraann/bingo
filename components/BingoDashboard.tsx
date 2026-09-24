@@ -20,6 +20,7 @@ import {
 import { GROUPS, TIMER_PRESETS, groupOf, generateBingoCard, patternLabel } from "@/lib/bingo";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { useHostGame } from "@/hooks/useHostGame";
+import { useBroadcastHostMode } from "@/hooks/useHostMode";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { QRPanel } from "@/components/QRPanel";
 import { PlayerLobbyList } from "@/components/PlayerLobbyList";
@@ -34,6 +35,7 @@ export function BingoDashboard({ mode, onModeChange }: { mode: HostMode; onModeC
   /* ── Game id + realtime state ─────────────────────────────────────────── */
   const [gameId, setGameId] = useState("");
   useEffect(() => setGameId(getOrCreateHostGameId()), []);
+  useBroadcastHostMode(gameId, "bingo");
 
   const {
     phase, players, calledNumbers, currentNumber, winners, connected,
@@ -271,30 +273,41 @@ export function BingoDashboard({ mode, onModeChange }: { mode: HostMode; onModeC
   ═══════════════════════════════════════════════════════════════════════ */
   if (phase === "LOBBY") {
     return (
-      <div dir="rtl" className="min-h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8">
-        <div className="flex flex-col items-center gap-1">
-          <h1 className="text-2xl md:text-3xl font-black text-gray-800">داشبۆردی بینگۆ</h1>
-          {ConnectionBadge}
+      <div dir="rtl" className="h-dvh bg-white overflow-y-auto">
+        {/* min-h-full inner wrapper: centered when it fits, top stays reachable when it scrolls */}
+        <div className="min-h-full flex flex-col items-center justify-center gap-5 sm:gap-6 px-4 py-6 sm:py-8 w-full max-w-5xl mx-auto">
+          <div className="flex flex-col items-center gap-1">
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-800">داشبۆردی بینگۆ</h1>
+            {ConnectionBadge}
+          </div>
+
+          <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-5 sm:gap-6 lg:gap-12 w-full">
+            {gameId && joinUrl && (
+              <div className="flex-shrink-0 lg:sticky lg:top-8">
+                <QRPanel gameId={gameId} joinUrl={joinUrl} />
+              </div>
+            )}
+
+            <div className="flex flex-col items-center gap-5 sm:gap-6 w-full max-w-md lg:max-w-lg lg:self-center">
+              <PlayerLobbyList players={players} />
+
+              <GameModeToggle mode={mode} onChange={onModeChange} />
+
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={startGame}
+                className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-black rounded-2xl px-8 py-3.5 text-lg shadow-[0_6px_24px_rgba(124,58,237,0.45)] cursor-pointer"
+              >
+                دەستپێکردنی یاری
+              </motion.button>
+
+              <button onClick={handleNewGame} className="text-xs text-gray-300 hover:text-gray-500 underline cursor-pointer">
+                دروستکردنی یاریی نوێ
+              </button>
+            </div>
+          </div>
         </div>
-
-        {gameId && joinUrl && <QRPanel gameId={gameId} joinUrl={joinUrl} />}
-
-        <PlayerLobbyList players={players} />
-
-        <GameModeToggle mode={mode} onChange={onModeChange} />
-
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={startGame}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-black rounded-2xl px-8 py-3.5 text-lg shadow-[0_6px_24px_rgba(124,58,237,0.45)] cursor-pointer"
-        >
-          دەستپێکردنی یاری
-        </motion.button>
-
-        <button onClick={handleNewGame} className="text-xs text-gray-300 hover:text-gray-500 underline cursor-pointer">
-          دروستکردنی یاریی نوێ
-        </button>
       </div>
     );
   }
