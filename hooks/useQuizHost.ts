@@ -156,7 +156,7 @@ export function useQuizHost(gameId: string) {
     for (const [playerId, submission] of submissionsRef.current) {
       const isCorrect = submission.answerIndex === question.correctAnswer;
       const elapsedMs = Math.min(Math.max(submission.timeElapsedMs, 0), totalTimeMs);
-      const points = isCorrect ? Math.round(1000 * (1 - elapsedMs / totalTimeMs)) : 0;
+      const points = isCorrect ? Math.round(100 * (1 -elapsedMs / totalTimeMs)) : 0;
       const prev = scoresRef.current.get(playerId);
       scoresRef.current.set(playerId, {
         playerId,

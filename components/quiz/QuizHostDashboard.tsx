@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pause, Play, Lightbulb, LightbulbOff } from "lucide-react";
+import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pause, Play, Lightbulb, LightbulbOff, Calculator } from "lucide-react";
 import { TIMER_PRESETS } from "@/lib/bingo";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { listQuizTopics } from "@/lib/quizLoader";
@@ -17,6 +17,7 @@ import { QuizAnswerButtons } from "@/components/quiz/QuizAnswerButtons";
 import { QuizLeaderboard } from "@/components/quiz/QuizLeaderboard";
 import { QuizWinnerModal } from "@/components/quiz/QuizWinnerModal";
 import { CountdownRing } from "@/components/quiz/CountdownRing";
+import { QuizPointsInfoModal } from "@/components/quiz/QuizPointsInfoModal";
 
 export function QuizHostDashboard({
   mode,
@@ -66,6 +67,7 @@ export function QuizHostDashboard({
   const [musicOn, setMusicOn] = useState(false);
   const [ringOn, setRingOn] = useState(true);
   const [showPlayers, setShowPlayers] = useState(false);
+  const [showPointsInfo, setShowPointsInfo] = useState(false);
   const [customInput, setCustomInput] = useState(String(questionDurationSec ?? currentQuestion?.timeLimit ?? 15));
   const [customCountInput, setCustomCountInput] = useState(String(questionCount));
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
@@ -363,6 +365,21 @@ export function QuizHostDashboard({
           activeClass="bg-amber-500 text-white shadow-[0_4px_14px_rgba(245,158,11,0.40)]"
         />
         {HintsToggle}
+        <motion.button
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setShowPointsInfo(true)}
+          title="خاڵ چۆن هەژمار دەکرێت؟"
+          className="flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-14 h-14 sm:w-16 sm:h-16 bg-gray-100 hover:bg-sky-50 text-gray-400 hover:text-sky-500 transition-colors duration-200 cursor-pointer"
+        >
+          <Calculator size={22} strokeWidth={2.5} />
+          <span className="text-[10px] font-bold">خاڵەکان</span>
+        </motion.button>
+        <QuizPointsInfoModal
+          open={showPointsInfo}
+          onClose={() => setShowPointsInfo(false)}
+          timeLimitSec={questionDurationSec ?? currentQuestion?.timeLimit ?? 15}
+        />
 
         <div className="flex flex-col items-center gap-1.5">
           <div className="flex items-center gap-1 text-gray-400">
