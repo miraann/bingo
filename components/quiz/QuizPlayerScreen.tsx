@@ -137,7 +137,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
             options={question.options}
             selectedAnswer={selectedAnswer}
             correctAnswer={revealed ? correctAnswer : null}
-            disabled={hasSubmitted || revealed || paused}
+            disabled={revealed || paused}
             onSelect={submitAnswer}
           />
 

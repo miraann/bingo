@@ -7,12 +7,15 @@ import { loadQuizQuestions, toPublicQuestion, type QuizQuestion } from "@/lib/qu
 import {
   QUIZ_EVENTS,
   quizChannelName,
+  type HintResultPayload,
+  type HintType,
   type LeaderboardEntry,
   type QuizPhase,
   type QuizPlayerPresence,
   type QuizStateSyncPayload,
   type SubmitAnswerPayload,
   type TimerPauseChangedPayload,
+  type UseHintPayload,
 } from "@/lib/quizChannel";
 
 interface PersistedHostState {
@@ -20,6 +23,9 @@ interface PersistedHostState {
   topicKey: string;
   currentIndex: number;
   scores: LeaderboardEntry[];
+  hintsEnabled: boolean;
+  /** playerId → hints already used this game. */
+  usedHints: Record<string, HintType[]>;
 }
 
 function storageKey(gameId: string) {
@@ -74,6 +80,8 @@ export function useQuizHost(gameId: string) {
       topicKey: loaded?.topicKey ?? "",
       currentIndex: loaded?.currentIndex ?? 0,
       scores: loaded?.scores ?? [],
+      hintsEnabled: loaded?.hintsEnabled ?? true,
+      usedHints: loaded?.usedHints ?? {},
     };
   }
 
@@ -89,6 +97,7 @@ export function useQuizHost(gameId: string) {
   const [paused, setPaused] = useState(false);
   const [questionDurationSec, setQuestionDurationSec] = useState<number | null>(null);
   const [questionCount, setQuestionCountState] = useState(DEFAULT_QUESTION_COUNT);
+  const [hintsEnabled, setHintsEnabledState] = useState(persisted.current.hintsEnabled);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const questionPoolRef = useRef<QuizQuestion[]>(topicKey ? loadQuizQuestions(topicKey) : []);
@@ -107,13 +116,21 @@ export function useQuizHost(gameId: string) {
   const nextQuestionRef = useRef<() => void>(() => {});
   const pausedRef = useRef(false);
   const remainingMsAtPauseRef = useRef(0);
+  const hintsEnabledRef = useRef(hintsEnabled);
+  const usedHintsRef = useRef<Map<string, Set<HintType>>>(
+    new Map(Object.entries(persisted.current.usedHints).map(([id, types]) => [id, new Set(types)])),
+  );
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
   useEffect(() => { topicKeyRef.current = topicKey; }, [topicKey]);
+  useEffect(() => { hintsEnabledRef.current = hintsEnabled; }, [hintsEnabled]);
+  // usedHints lives in a ref (read inside channel handlers); bump this to re-persist it.
+  const [usedHintsVersion, setUsedHintsVersion] = useState(0);
   useEffect(() => {
-    savePersisted(gameId, { phase, topicKey, currentIndex, scores: leaderboard });
-  }, [gameId, phase, topicKey, currentIndex, leaderboard]);
+    const usedHints = Object.fromEntries(Array.from(usedHintsRef.current, ([id, set]) => [id, Array.from(set)]));
+    savePersisted(gameId, { phase, topicKey, currentIndex, scores: leaderboard, hintsEnabled, usedHints });
+  }, [gameId, phase, topicKey, currentIndex, leaderboard, hintsEnabled, usedHintsVersion]);
 
   const clearRevealTimer = useCallback(() => {
     if (revealTimerRef.current) {
@@ -208,13 +225,50 @@ export function useQuizHost(gameId: string) {
         paused: pausedRef.current,
         correctAnswer: phaseRef.current === "REVEAL" || phaseRef.current === "ENDED" ? question?.correctAnswer ?? null : null,
         leaderboard: computeLeaderboard(scoresRef.current),
+        hintsEnabled: hintsEnabledRef.current,
       };
       channel.send({ type: "broadcast", event: QUIZ_EVENTS.stateSync, payload });
     });
 
+    channel.on("broadcast", { event: QUIZ_EVENTS.useHint }, ({ payload }: { payload: UseHintPayload }) => {
+      const { playerId, type, index } = payload;
+      const reply = (result: Omit<HintResultPayload, "playerId" | "type" | "index">) =>
+        channel.send({
+          type: "broadcast",
+          event: QUIZ_EVENTS.hintResult,
+          payload: { playerId, type, index, ...result } satisfies HintResultPayload,
+        });
+
+      const question = questionsRef.current[index];
+      const used = usedHintsRef.current.get(playerId) ?? new Set<HintType>();
+      if (
+        !hintsEnabledRef.current || !question || used.has(type) ||
+        phaseRef.current !== "QUESTION" || pausedRef.current || index !== currentIndexRef.current
+      ) {
+        reply({ denied: true });
+        return;
+      }
+
+      used.add(type);
+      usedHintsRef.current.set(playerId, used);
+      setUsedHintsVersion(v => v + 1);
+
+      if (type === "showCorrect") {
+        reply({ correctAnswer: question.correctAnswer });
+        return;
+      }
+      // 50/50: remove up to two wrong options, always leaving at least one wrong one.
+      const wrong = question.options.map((_, i) => i).filter(i => i !== question.correctAnswer);
+      for (let i = wrong.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [wrong[i], wrong[j]] = [wrong[j], wrong[i]];
+      }
+      reply({ removedOptions: wrong.slice(0, Math.min(2, wrong.length - 1)) });
+    });
+
     channel.on("broadcast", { event: QUIZ_EVENTS.submitAnswer }, ({ payload }: { payload: SubmitAnswerPayload }) => {
       if (phaseRef.current !== "QUESTION" || pausedRef.current) return;
-      if (submissionsRef.current.has(payload.playerId)) return;
+      // Players may change their answer until reveal — the latest pick (and its timing) wins.
       // Host's own clock is authoritative for timing, not the client's self-reported value.
       const hostElapsedMs = startedAtRef.current != null ? Date.now() - startedAtRef.current : payload.timeElapsedMs;
       submissionsRef.current.set(payload.playerId, { ...payload, timeElapsedMs: hostElapsedMs });
@@ -319,6 +373,13 @@ export function useQuizHost(gameId: string) {
     channelRef.current?.send({ type: "broadcast", event: QUIZ_EVENTS.timerPauseChanged, payload });
   }, [clearRevealTimer, revealAnswer]);
 
+  /** Turns the players' once-per-game hints (50/50, show correct) on or off. */
+  const setHintsEnabled = useCallback((enabled: boolean) => {
+    hintsEnabledRef.current = enabled;
+    setHintsEnabledState(enabled);
+    channelRef.current?.send({ type: "broadcast", event: QUIZ_EVENTS.hintsEnabledChanged, payload: { enabled } });
+  }, []);
+
   /** Overrides the per-question timer (null reverts to each question's own timeLimit). */
   const setQuestionDuration = useCallback((seconds: number | null) => {
     questionDurationRef.current = seconds;
@@ -329,6 +390,8 @@ export function useQuizHost(gameId: string) {
     if (!topicKeyRef.current || questionPoolRef.current.length === 0) return;
     const count = Math.min(Math.max(questionCountRef.current, 1), questionPoolRef.current.length);
     questionsRef.current = sampleQuestions(questionPoolRef.current, count);
+    usedHintsRef.current = new Map();
+    setUsedHintsVersion(v => v + 1);
     showQuestion(0);
   }, [showQuestion]);
 
@@ -360,6 +423,8 @@ export function useQuizHost(gameId: string) {
     clearAutoAdvanceTimer();
     submissionsRef.current = new Map();
     scoresRef.current = new Map();
+    usedHintsRef.current = new Map();
+    setUsedHintsVersion(v => v + 1);
     startedAtRef.current = null;
     pausedRef.current = false;
     setPaused(false);
@@ -383,5 +448,6 @@ export function useQuizHost(gameId: string) {
     questionCount, setQuestionCount,
     startQuiz, revealAnswer, nextQuestion, resetQuiz, endQuiz,
     pauseQuestion, resumeQuestion,
+    hintsEnabled, setHintsEnabled,
   };
 }

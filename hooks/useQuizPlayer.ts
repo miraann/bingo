@@ -69,11 +69,9 @@ export function useQuizPlayer(gameId: string) {
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const playerRef = useRef(player);
-  const hasSubmittedRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
   const pausedRef = useRef(false);
   useEffect(() => { playerRef.current = player; }, [player]);
-  useEffect(() => { hasSubmittedRef.current = hasSubmitted; }, [hasSubmitted]);
   useEffect(() => { startedAtRef.current = startedAt; }, [startedAt]);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
 
@@ -169,7 +167,7 @@ export function useQuizPlayer(gameId: string) {
   }, [gameId]);
 
   const submitAnswer = useCallback((answerIndex: number) => {
-    if (hasSubmittedRef.current || pausedRef.current || !playerRef.current) return;
+    if (pausedRef.current || !playerRef.current) return;
     setSelectedAnswer(answerIndex);
     setHasSubmitted(true);
     const timeElapsedMs = startedAtRef.current != null ? Date.now() - startedAtRef.current : 0;
