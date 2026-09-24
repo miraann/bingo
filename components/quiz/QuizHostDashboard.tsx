@@ -266,11 +266,6 @@ export function QuizHostDashboard({
     );
   }
 
-  /* ═══════════════════════ COUNTDOWN INTO NEXT QUESTION ═══════════════════════ */
-  if (loadingNextIndex != null) {
-    return <NextQuestionLoader index={loadingNextIndex} total={totalQuestions} durationMs={NEXT_QUESTION_LOADING_MS} />;
-  }
-
   /* ═══════════════════════════ QUESTION / REVEAL ═══════════════════════════ */
   const revealed = phase === "REVEAL";
 
@@ -466,6 +461,9 @@ export function QuizHostDashboard({
               >
                 {currentIndex + 1 >= totalQuestions ? "کۆتایی کویز" : "پرسیاری داهاتوو"}
               </motion.button>
+              {loadingNextIndex != null && (
+                <NextQuestionLoader index={loadingNextIndex} total={totalQuestions} durationMs={NEXT_QUESTION_LOADING_MS} inline />
+              )}
             </div>
           )}
         </>
