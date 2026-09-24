@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pause, Play, Lightbulb, LightbulbOff, Calculator } from "lucide-react";
-import { TIMER_PRESETS } from "@/lib/bingo";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { listQuizTopics } from "@/lib/quizLoader";
 import { useQuizHost, NEXT_QUESTION_LOADING_MS } from "@/hooks/useQuizHost";
@@ -19,6 +18,8 @@ import { QuizWinnerModal } from "@/components/quiz/QuizWinnerModal";
 import { CountdownRing } from "@/components/quiz/CountdownRing";
 import { NextQuestionLoader } from "@/components/quiz/NextQuestionLoader";
 import { QuizPointsInfoModal } from "@/components/quiz/QuizPointsInfoModal";
+
+const QUIZ_TIMER_PRESETS = [10, 15, 20, 30] as const;
 
 export function QuizHostDashboard({
   mode,
@@ -393,7 +394,7 @@ export function QuizHostDashboard({
             <span className="text-xs font-bold tracking-widest uppercase">کاتی پرسیار</span>
           </div>
           <div className="flex gap-1.5 sm:gap-2" dir="ltr">
-            {TIMER_PRESETS.map(s => (
+            {QUIZ_TIMER_PRESETS.map(s => (
               <motion.button
                 key={s} whileTap={{ scale: 0.92 }}
                 onClick={() => selectPreset(s)}
