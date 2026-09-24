@@ -319,7 +319,7 @@ export function useQuizHost(gameId: string) {
     setQuestionCountState(count);
   }, []);
 
-  const showQuestion = useCallback((index: number) => {
+  const showQuestion = useCallback((index: number, waitForStart = false) => {
     const question = questionsRef.current[index];
     if (!question) return;
     submissionsRef.current = new Map();
@@ -334,13 +334,13 @@ export function useQuizHost(gameId: string) {
     const effectiveTimeLimit = questionDurationRef.current ?? question.timeLimit;
     effectiveTimeLimitRef.current = effectiveTimeLimit;
 
-    // The question opens paused at full time — the timer (and answering) only
-    // begins once the host presses Start (resumeQuestion).
+    // The first question opens paused at full time — the timer (and answering)
+    // only begins once the host presses Start (resumeQuestion). Later ones run straight away.
     remainingMsAtPauseRef.current = effectiveTimeLimit * 1000;
-    pausedRef.current = true;
-    setPaused(true);
-    awaitingStartRef.current = true;
-    setAwaitingStart(true);
+    pausedRef.current = waitForStart;
+    setPaused(waitForStart);
+    awaitingStartRef.current = waitForStart;
+    setAwaitingStart(waitForStart);
 
     channelRef.current?.send({
       type: "broadcast",
@@ -350,12 +350,15 @@ export function useQuizHost(gameId: string) {
         index,
         total: questionsRef.current.length,
         startedAt: now,
-        awaitingStart: true,
+        awaitingStart: waitForStart,
       },
     });
 
     clearRevealTimer();
-  }, [clearRevealTimer]);
+    if (!waitForStart) {
+      revealTimerRef.current = setTimeout(() => revealAnswer(), effectiveTimeLimit * 1000 + 400);
+    }
+  }, [clearRevealTimer, revealAnswer]);
 
   /** Pauses the current question's countdown, freezing the remaining time for
    *  every client and blocking new submissions until resumed. */
@@ -410,7 +413,7 @@ export function useQuizHost(gameId: string) {
     questionsRef.current = sampleQuestions(questionPoolRef.current, count);
     usedHintsRef.current = new Map();
     setUsedHintsVersion(v => v + 1);
-    showQuestion(0);
+    showQuestion(0, true);
   }, [showQuestion]);
 
   /** Ends the quiz immediately, wherever it currently is (host-initiated "end game"). */
