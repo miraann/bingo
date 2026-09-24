@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pause, Play } from "lucide-react";
+import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pause, Play, Lightbulb, LightbulbOff } from "lucide-react";
 import { TIMER_PRESETS } from "@/lib/bingo";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { listQuizTopics } from "@/lib/quizLoader";
@@ -39,7 +39,17 @@ export function QuizHostDashboard({
     questionCount, setQuestionCount,
     startQuiz, revealAnswer, nextQuestion, resetQuiz, endQuiz,
     pauseQuestion, resumeQuestion,
+    hintsEnabled, setHintsEnabled,
   } = useQuizHost(gameId);
+
+  const HintsToggle = (
+    <IconToggle
+      size="lg"
+      activeIcon={Lightbulb} inactiveIcon={LightbulbOff} label="یارمەتی" active={hintsEnabled}
+      onClick={() => setHintsEnabled(!hintsEnabled)}
+      activeClass="bg-yellow-400 text-white shadow-[0_4px_14px_rgba(250,204,21,0.45)]"
+    />
+  );
 
   const [joinUrl, setJoinUrl] = useState("");
   useEffect(() => {
@@ -196,6 +206,13 @@ export function QuizHostDashboard({
                 </div>
               )}
 
+              <div className="flex flex-col items-center gap-1.5">
+                {HintsToggle}
+                <span className="text-[10px] text-gray-400 text-center max-w-[16rem]">
+                  هەر یاریزانێک یەکجار لە یارییەکدا دەتوانێت ٢ وەڵام لاببات و یەکجار وەڵامی ڕاست ببینێت
+                </span>
+              </div>
+
               <PlayerLobbyList players={players} />
 
               <GameModeToggle mode={mode} onChange={onModeChange} />
@@ -345,6 +362,7 @@ export function QuizHostDashboard({
           onClick={() => setRingOn(v => !v)}
           activeClass="bg-amber-500 text-white shadow-[0_4px_14px_rgba(245,158,11,0.40)]"
         />
+        {HintsToggle}
 
         <div className="flex flex-col items-center gap-1.5">
           <div className="flex items-center gap-1 text-gray-400">

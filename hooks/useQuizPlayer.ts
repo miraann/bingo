@@ -11,6 +11,9 @@ import {
   quizChannelName,
   type AnswerRevealPayload,
   type GameModeChangedPayload,
+  type HintResultPayload,
+  type HintsEnabledChangedPayload,
+  type HintType,
   type LeaderboardEntry,
   type QuestionShownPayload,
   type QuizPhase,
@@ -48,6 +51,29 @@ function savePersisted(gameId: string, p: PersistedPlayer) {
   } catch {}
 }
 
+/** Hints used this game, kept locally so a refresh still shows them as spent
+ *  (the host enforces the limit regardless). */
+function hintsStorageKey(gameId: string) {
+  return `quiz:hints:${gameId}`;
+}
+
+function loadUsedHints(gameId: string): HintType[] {
+  if (typeof window === "undefined" || !gameId) return [];
+  try {
+    const raw = window.localStorage.getItem(hintsStorageKey(gameId));
+    return raw ? (JSON.parse(raw) as HintType[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveUsedHints(gameId: string, hints: HintType[]) {
+  if (!gameId) return;
+  try {
+    window.localStorage.setItem(hintsStorageKey(gameId), JSON.stringify(hints));
+  } catch {}
+}
+
 /** Drives the player side of a quiz round: registers a name/emoji, mirrors
  *  the host's question/reveal broadcasts, and submits answers for the host
  *  to score — this hook never decides correctness itself. */
@@ -66,14 +92,28 @@ export function useQuizPlayer(gameId: string) {
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [connected, setConnected] = useState(false);
+  const [hintsEnabled, setHintsEnabled] = useState(false);
+  const [usedHints, setUsedHints] = useState<HintType[]>(() => loadUsedHints(gameId));
+  const [pendingHint, setPendingHint] = useState<HintType | null>(null);
+  const [removedOptions, setRemovedOptions] = useState<number[]>([]);
+  const [hintedAnswer, setHintedAnswer] = useState<number | null>(null);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const playerRef = useRef(player);
   const startedAtRef = useRef<number | null>(null);
   const pausedRef = useRef(false);
+  const questionIndexRef = useRef(0);
+  const usedHintsRef = useRef(usedHints);
+  const pendingHintRef = useRef<HintType | null>(null);
   useEffect(() => { playerRef.current = player; }, [player]);
   useEffect(() => { startedAtRef.current = startedAt; }, [startedAt]);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
+  useEffect(() => { questionIndexRef.current = questionIndex; }, [questionIndex]);
+  useEffect(() => { pendingHintRef.current = pendingHint; }, [pendingHint]);
+  useEffect(() => {
+    usedHintsRef.current = usedHints;
+    saveUsedHints(gameId, usedHints);
+  }, [gameId, usedHints]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -98,7 +138,26 @@ export function useQuizPlayer(gameId: string) {
       setSelectedAnswer(null);
       setHasSubmitted(false);
       setCorrectAnswer(null);
+      setRemovedOptions([]);
+      setHintedAnswer(null);
+      setPendingHint(null);
+      // First question of a fresh game — hints are available again.
+      if (payload.index === 0) setUsedHints([]);
       setPhase("QUESTION");
+    });
+
+    channel.on("broadcast", { event: QUIZ_EVENTS.hintsEnabledChanged }, ({ payload }: { payload: HintsEnabledChangedPayload }) => {
+      setHintsEnabled(payload.enabled);
+    });
+
+    channel.on("broadcast", { event: QUIZ_EVENTS.hintResult }, ({ payload }: { payload: HintResultPayload }) => {
+      if (payload.playerId !== playerRef.current?.playerId) return;
+      if (pendingHintRef.current === payload.type) setPendingHint(null);
+      if (payload.denied === "unavailable") return;
+      setUsedHints(prev => (prev.includes(payload.type) ? prev : [...prev, payload.type]));
+      if (payload.denied || payload.index !== questionIndexRef.current) return;
+      if (payload.removedOptions) setRemovedOptions(payload.removedOptions);
+      if (payload.correctAnswer != null) setHintedAnswer(payload.correctAnswer);
     });
 
     channel.on("broadcast", { event: QUIZ_EVENTS.timerPauseChanged }, ({ payload }: { payload: TimerPauseChangedPayload }) => {
@@ -126,6 +185,10 @@ export function useQuizPlayer(gameId: string) {
       setHasSubmitted(false);
       setCorrectAnswer(null);
       setLeaderboard([]);
+      setUsedHints([]);
+      setRemovedOptions([]);
+      setHintedAnswer(null);
+      setPendingHint(null);
     });
 
     channel.on("broadcast", { event: QUIZ_EVENTS.stateSync }, ({ payload }: { payload: QuizStateSyncPayload }) => {
@@ -138,6 +201,7 @@ export function useQuizPlayer(gameId: string) {
       setPaused(payload.paused);
       setCorrectAnswer(payload.correctAnswer);
       setLeaderboard(payload.leaderboard);
+      setHintsEnabled(payload.hintsEnabled ?? false);
     });
 
     channel.subscribe(status => {
@@ -184,6 +248,24 @@ export function useQuizPlayer(gameId: string) {
     });
   }, []);
 
+  /** Asks the host for a hint on the current question; the host replies with
+   *  the options to remove (50/50) or the correct answer. */
+  const requestHint = useCallback((type: HintType) => {
+    if (!playerRef.current || pausedRef.current || pendingHintRef.current) return;
+    if (usedHintsRef.current.includes(type)) return;
+    pendingHintRef.current = type;
+    setPendingHint(type);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: QUIZ_EVENTS.useHint,
+      payload: { playerId: playerRef.current.playerId, type, index: questionIndexRef.current },
+    });
+    // Don't leave the button spinning if the host never answers.
+    setTimeout(() => {
+      if (pendingHintRef.current === type) setPendingHint(null);
+    }, 5000);
+  }, []);
+
   const feedback: AnswerFeedback =
     phase !== "REVEAL" ? "idle" :
     !hasSubmitted ? "timeout" :
@@ -195,5 +277,6 @@ export function useQuizPlayer(gameId: string) {
     player, phase, topicLabel, question, questionIndex, totalQuestions, startedAt, paused,
     selectedAnswer, hasSubmitted, correctAnswer, leaderboard, feedback, myEntry, connected,
     join, submitAnswer,
+    hintsEnabled, usedHints, pendingHint, removedOptions, hintedAnswer, requestHint,
   };
 }

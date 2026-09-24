@@ -16,12 +16,18 @@ export function QuizAnswerButtons({
   correctAnswer,
   disabled,
   onSelect,
+  removedOptions = [],
+  hintedAnswer = null,
 }: {
   options: string[];
   selectedAnswer: number | null;
   correctAnswer: number | null;
   disabled: boolean;
   onSelect?: (index: number) => void;
+  /** Options knocked out by a 50/50 hint — shown faded and unclickable. */
+  removedOptions?: number[];
+  /** Correct answer revealed early to this player by a hint. */
+  hintedAnswer?: number | null;
 }) {
   const revealed = correctAnswer !== null;
 
@@ -32,7 +38,9 @@ export function QuizAnswerButtons({
         const isSelected = selectedAnswer === i;
         const isCorrect = revealed && i === correctAnswer;
         const isWrongSelected = revealed && isSelected && i !== correctAnswer;
-        const interactive = !disabled && !!onSelect;
+        const isRemoved = !revealed && removedOptions.includes(i);
+        const isHinted = !revealed && hintedAnswer === i;
+        const interactive = !disabled && !!onSelect && !isRemoved;
 
         // On reveal, only the correct answer (and the player's own wrong pick, if any) stay visible.
         if (revealed && !isCorrect && !isWrongSelected) return null;
@@ -43,6 +51,8 @@ export function QuizAnswerButtons({
           ? "border-red-500"
           : isSelected && !revealed
           ? "border-orange-400"
+          : isHinted
+          ? "border-yellow-300"
           : "border-transparent";
 
         return (
@@ -59,13 +69,15 @@ export function QuizAnswerButtons({
               shadow-lg transition-all duration-200 border-4
               ${isCorrect ? "px-6 py-8 text-xl sm:text-2xl" : "px-4 py-6 text-base sm:text-lg"}
               ${color.bg} ${interactive ? `${color.hover} cursor-pointer` : ""}
-              ${revealed && !isCorrect && !isWrongSelected ? "opacity-40" : ""}
+              ${isRemoved ? "opacity-15 line-through shadow-none" : ""}
+              ${isHinted ? "ring-4 ring-yellow-300/70 shadow-[0_0_24px_rgba(253,224,71,0.8)]" : ""}
               ${borderClass}
               ${isCorrect ? "scale-[1.05]" : ""}
             `}
           >
             {isCorrect && <Check size={28} strokeWidth={3} />}
             {isWrongSelected && <X size={20} strokeWidth={3} />}
+            {isHinted && <span aria-hidden>💡</span>}
             <span>{opt}</span>
           </motion.button>
         );

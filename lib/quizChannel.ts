@@ -56,6 +56,35 @@ export interface TimerPauseChangedPayload {
   startedAt: number;
 }
 
+/** Lifelines a player can each use once per game. */
+export type HintType = "fiftyFifty" | "showCorrect";
+
+/** Broadcast when the host turns player hints on/off. */
+export interface HintsEnabledChangedPayload {
+  enabled: boolean;
+}
+
+/** Player → host: request a hint for the question at `index`. */
+export interface UseHintPayload {
+  playerId: string;
+  type: HintType;
+  index: number;
+}
+
+/** Host → one player (filtered by playerId): the hint's result. The host
+ *  owns the answer key, so it decides which options to remove / reveal and
+ *  enforces the once-per-game limit. `denied` says why a hint was refused:
+ *  "used" (spent earlier this game) or "unavailable" (hints off, paused, or
+ *  the question moved on). */
+export interface HintResultPayload {
+  playerId: string;
+  type: HintType;
+  index: number;
+  denied?: "used" | "unavailable";
+  removedOptions?: number[];
+  correctAnswer?: number;
+}
+
 /** Full snapshot sent in response to a late-joiner's state-sync request. */
 export interface QuizStateSyncPayload {
   phase: QuizPhase;
@@ -68,6 +97,7 @@ export interface QuizStateSyncPayload {
   paused: boolean;
   correctAnswer: number | null;
   leaderboard: LeaderboardEntry[];
+  hintsEnabled: boolean;
 }
 
 export const QUIZ_EVENTS = {
@@ -80,6 +110,9 @@ export const QUIZ_EVENTS = {
   phaseChanged: "quiz-phase-changed",
   quizReset: "quiz-reset",
   timerPauseChanged: "timer-pause-changed",
+  hintsEnabledChanged: "hints-enabled-changed",
+  useHint: "USE_HINT",
+  hintResult: "hint-result",
 } as const;
 
 export function quizChannelName(gameId: string) {

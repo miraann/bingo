@@ -10,6 +10,12 @@ import { QuizAnswerButtons } from "@/components/quiz/QuizAnswerButtons";
 import { QuizLeaderboard } from "@/components/quiz/QuizLeaderboard";
 import { CountdownRing } from "@/components/quiz/CountdownRing";
 import { playCorrectSound, playIncorrectSound } from "@/lib/quizSound";
+import type { HintType } from "@/lib/quizChannel";
+
+const HINTS: { type: HintType; icon: string; label: string }[] = [
+  { type: "fiftyFifty", icon: "✂️", label: "لابردنی ٢ وەڵام" },
+  { type: "showCorrect", icon: "💡", label: "وەڵامی ڕاست" },
+];
 
 export function QuizPlayerScreen({ gameId }: { gameId: string }) {
   useWakeLock();
@@ -21,6 +27,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
     player, phase, topicLabel, question, questionIndex, totalQuestions,
     startedAt, paused, selectedAnswer, hasSubmitted, correctAnswer, leaderboard,
     feedback, myEntry, connected, join, submitAnswer,
+    hintsEnabled, usedHints, pendingHint, removedOptions, hintedAnswer, requestHint,
   } = useQuizPlayer(gameId);
 
   const lastQuestionIdRef = useRef<number | null>(null);
@@ -139,7 +146,41 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
             correctAnswer={revealed ? correctAnswer : null}
             disabled={revealed || paused}
             onSelect={submitAnswer}
+            removedOptions={removedOptions}
+            hintedAnswer={hintedAnswer}
           />
+
+          {!revealed && hintsEnabled && (
+            <div className="flex items-center justify-center gap-2 w-full max-w-md">
+              {HINTS.map(h => {
+                const used = usedHints.includes(h.type);
+                const loading = pendingHint === h.type;
+                const available = !used && !paused && pendingHint === null;
+                return (
+                  <motion.button
+                    key={h.type}
+                    type="button"
+                    whileTap={available ? { scale: 0.92 } : undefined}
+                    disabled={!available}
+                    onClick={() => requestHint(h.type)}
+                    className={`
+                      flex-1 flex items-center justify-center gap-1.5 rounded-2xl px-3 py-2.5 text-sm font-black border-2
+                      transition-colors duration-200
+                      ${used
+                        ? "bg-gray-50 border-gray-100 text-gray-300 line-through cursor-not-allowed"
+                        : available
+                        ? "bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100 cursor-pointer"
+                        : "bg-yellow-50 border-yellow-200 text-yellow-600 opacity-60 cursor-not-allowed"}
+                      ${loading ? "animate-pulse" : ""}
+                    `}
+                  >
+                    <span aria-hidden>{h.icon}</span>
+                    {h.label}
+                  </motion.button>
+                );
+              })}
+            </div>
+          )}
 
           {!revealed && paused && (
             <p className="text-sm font-bold text-emerald-600">⏸ یاریمان وەستاوە، چاوەڕێی بکە...</p>

@@ -241,11 +241,15 @@ export function useQuizHost(gameId: string) {
 
       const question = questionsRef.current[index];
       const used = usedHintsRef.current.get(playerId) ?? new Set<HintType>();
+      if (used.has(type)) {
+        reply({ denied: "used" });
+        return;
+      }
       if (
-        !hintsEnabledRef.current || !question || used.has(type) ||
+        !hintsEnabledRef.current || !question ||
         phaseRef.current !== "QUESTION" || pausedRef.current || index !== currentIndexRef.current
       ) {
-        reply({ denied: true });
+        reply({ denied: "unavailable" });
         return;
       }
 
