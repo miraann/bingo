@@ -66,6 +66,7 @@ function sampleQuestions(pool: QuizQuestion[], count: number): QuizQuestion[] {
 
 const DEFAULT_QUESTION_COUNT = 10;
 const AUTO_ADVANCE_DELAY_MS = 4000;
+export const NEXT_QUESTION_LOADING_MS = 5000;
 
 /** Drives the host side of a quiz round: owns the authoritative question set,
  *  broadcasts every question/reveal over the Supabase Realtime channel, and
@@ -96,6 +97,8 @@ export function useQuizHost(gameId: string) {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [awaitingStart, setAwaitingStart] = useState(false);
+  /** Index of the question the "next question" countdown is leading into, or null. */
+  const [loadingNextIndex, setLoadingNextIndex] = useState<number | null>(null);
   const [questionDurationSec, setQuestionDurationSec] = useState<number | null>(null);
   const [questionCount, setQuestionCountState] = useState(DEFAULT_QUESTION_COUNT);
   const [hintsEnabled, setHintsEnabledState] = useState(persisted.current.hintsEnabled);
@@ -114,6 +117,7 @@ export function useQuizHost(gameId: string) {
   const scoresRef = useRef<Map<string, LeaderboardEntry>>(new Map(persisted.current.scores.map(s => [s.playerId, s])));
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingNextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextQuestionRef = useRef<() => void>(() => {});
   const pausedRef = useRef(false);
   const awaitingStartRef = useRef(false);
@@ -146,6 +150,11 @@ export function useQuizHost(gameId: string) {
       clearTimeout(autoAdvanceTimerRef.current);
       autoAdvanceTimerRef.current = null;
     }
+    if (loadingNextTimerRef.current) {
+      clearTimeout(loadingNextTimerRef.current);
+      loadingNextTimerRef.current = null;
+    }
+    setLoadingNextIndex(null);
   }, []);
 
   const revealAnswer = useCallback(() => {
@@ -429,14 +438,27 @@ export function useQuizHost(gameId: string) {
     channelRef.current?.send({ type: "broadcast", event: QUIZ_EVENTS.phaseChanged, payload: { phase: "ENDED" } });
   }, [clearRevealTimer, clearAutoAdvanceTimer]);
 
+  /** Moves on from a reveal: shows a short "next question" countdown on every
+   *  screen, then the next question (or ends the quiz after the last one). */
   const nextQuestion = useCallback(() => {
+    if (loadingNextTimerRef.current) return;
     clearAutoAdvanceTimer();
     const next = currentIndexRef.current + 1;
     if (next >= questionsRef.current.length) {
       endQuiz();
       return;
     }
-    showQuestion(next);
+    setLoadingNextIndex(next);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: QUIZ_EVENTS.nextQuestionLoading,
+      payload: { index: next, total: questionsRef.current.length, durationMs: NEXT_QUESTION_LOADING_MS },
+    });
+    loadingNextTimerRef.current = setTimeout(() => {
+      loadingNextTimerRef.current = null;
+      setLoadingNextIndex(null);
+      showQuestion(next);
+    }, NEXT_QUESTION_LOADING_MS);
   }, [showQuestion, endQuiz, clearAutoAdvanceTimer]);
 
   nextQuestionRef.current = nextQuestion;
@@ -467,7 +489,7 @@ export function useQuizHost(gameId: string) {
 
   return {
     phase, players, connected, topicKey, setTopic,
-    currentIndex, totalQuestions, currentQuestion, startedAt, paused, awaitingStart,
+    currentIndex, totalQuestions, currentQuestion, startedAt, paused, awaitingStart, loadingNextIndex,
     submittedCount, correctAnswer, leaderboard,
     questionDurationSec, setQuestionDuration,
     questionCount, setQuestionCount,

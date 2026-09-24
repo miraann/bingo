@@ -9,6 +9,7 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { QuizAnswerButtons } from "@/components/quiz/QuizAnswerButtons";
 import { QuizLeaderboard } from "@/components/quiz/QuizLeaderboard";
 import { CountdownRing } from "@/components/quiz/CountdownRing";
+import { NextQuestionLoader } from "@/components/quiz/NextQuestionLoader";
 import { playCorrectSound, playIncorrectSound } from "@/lib/quizSound";
 import type { HintType } from "@/lib/quizChannel";
 
@@ -25,7 +26,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
 
   const {
     player, phase, topicLabel, question, questionIndex, totalQuestions,
-    startedAt, paused, awaitingStart, selectedAnswer, hasSubmitted, correctAnswer, leaderboard,
+    startedAt, paused, awaitingStart, loadingNext, selectedAnswer, hasSubmitted, correctAnswer, leaderboard,
     feedback, myEntry, connected, join, submitAnswer,
     hintsEnabled, usedHints, pendingHint, removedOptions, hintedAnswer, requestHint,
   } = useQuizPlayer(gameId);
@@ -96,6 +97,11 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
         <p className="text-sm text-gray-400 text-center">چاوەڕێی دەستپێکردنی کویز بکە...</p>
       </div>
     );
+  }
+
+  /* ── Countdown into the next question ──────────────────────────────────── */
+  if (loadingNext && phase === "REVEAL") {
+    return <NextQuestionLoader index={loadingNext.index} total={loadingNext.total} durationMs={loadingNext.durationMs} />;
   }
 
   /* ── Quiz ended ────────────────────────────────────────────────────────── */

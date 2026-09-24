@@ -6,7 +6,7 @@ import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pau
 import { TIMER_PRESETS } from "@/lib/bingo";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { listQuizTopics } from "@/lib/quizLoader";
-import { useQuizHost } from "@/hooks/useQuizHost";
+import { useQuizHost, NEXT_QUESTION_LOADING_MS } from "@/hooks/useQuizHost";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useBroadcastHostMode } from "@/hooks/useHostMode";
 import { QRPanel } from "@/components/QRPanel";
@@ -17,6 +17,7 @@ import { QuizAnswerButtons } from "@/components/quiz/QuizAnswerButtons";
 import { QuizLeaderboard } from "@/components/quiz/QuizLeaderboard";
 import { QuizWinnerModal } from "@/components/quiz/QuizWinnerModal";
 import { CountdownRing } from "@/components/quiz/CountdownRing";
+import { NextQuestionLoader } from "@/components/quiz/NextQuestionLoader";
 import { QuizPointsInfoModal } from "@/components/quiz/QuizPointsInfoModal";
 
 export function QuizHostDashboard({
@@ -34,7 +35,7 @@ export function QuizHostDashboard({
 
   const {
     phase, players, connected, topicKey, setTopic,
-    currentIndex, totalQuestions, currentQuestion, startedAt, paused, awaitingStart,
+    currentIndex, totalQuestions, currentQuestion, startedAt, paused, awaitingStart, loadingNextIndex,
     submittedCount, correctAnswer, leaderboard,
     questionDurationSec, setQuestionDuration,
     questionCount, setQuestionCount,
@@ -262,6 +263,11 @@ export function QuizHostDashboard({
         <QuizWinnerModal leaderboard={leaderboard} onNewGame={resetQuiz} />
       </div>
     );
+  }
+
+  /* ═══════════════════════ COUNTDOWN INTO NEXT QUESTION ═══════════════════════ */
+  if (loadingNextIndex != null) {
+    return <NextQuestionLoader index={loadingNextIndex} total={totalQuestions} durationMs={NEXT_QUESTION_LOADING_MS} />;
   }
 
   /* ═══════════════════════════ QUESTION / REVEAL ═══════════════════════════ */

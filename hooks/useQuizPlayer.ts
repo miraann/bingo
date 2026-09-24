@@ -14,6 +14,7 @@ import {
   type HintResultPayload,
   type HintsEnabledChangedPayload,
   type HintType,
+  type NextQuestionLoadingPayload,
   type LeaderboardEntry,
   type QuestionShownPayload,
   type QuizPhase,
@@ -88,6 +89,7 @@ export function useQuizPlayer(gameId: string) {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [awaitingStart, setAwaitingStart] = useState(false);
+  const [loadingNext, setLoadingNext] = useState<NextQuestionLoadingPayload | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
@@ -129,7 +131,12 @@ export function useQuizPlayer(gameId: string) {
       setTopicLabel(payload.topicLabel);
     });
 
+    channel.on("broadcast", { event: QUIZ_EVENTS.nextQuestionLoading }, ({ payload }: { payload: NextQuestionLoadingPayload }) => {
+      setLoadingNext(payload);
+    });
+
     channel.on("broadcast", { event: QUIZ_EVENTS.questionShown }, ({ payload }: { payload: QuestionShownPayload }) => {
+      setLoadingNext(null);
       setQuestion(payload.question);
       setQuestionIndex(payload.index);
       setTotalQuestions(payload.total);
@@ -175,6 +182,7 @@ export function useQuizPlayer(gameId: string) {
 
     channel.on("broadcast", { event: QUIZ_EVENTS.phaseChanged }, ({ payload }: { payload: QuizPhaseChangedPayload }) => {
       setPhase(payload.phase);
+      setLoadingNext(null);
     });
 
     channel.on("broadcast", { event: QUIZ_EVENTS.quizReset }, () => {
@@ -184,6 +192,7 @@ export function useQuizPlayer(gameId: string) {
       setStartedAt(null);
       setPaused(false);
       setAwaitingStart(false);
+      setLoadingNext(null);
       setSelectedAnswer(null);
       setHasSubmitted(false);
       setCorrectAnswer(null);
@@ -278,7 +287,7 @@ export function useQuizPlayer(gameId: string) {
   const myEntry = player ? leaderboard.find(e => e.playerId === player.playerId) ?? null : null;
 
   return {
-    player, phase, topicLabel, question, questionIndex, totalQuestions, startedAt, paused, awaitingStart,
+    player, phase, topicLabel, question, questionIndex, totalQuestions, startedAt, paused, awaitingStart, loadingNext,
     selectedAnswer, hasSubmitted, correctAnswer, leaderboard, feedback, myEntry, connected,
     join, submitAnswer,
     hintsEnabled, usedHints, pendingHint, removedOptions, hintedAnswer, requestHint,

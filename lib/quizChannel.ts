@@ -33,6 +33,13 @@ export interface QuestionShownPayload {
   awaitingStart: boolean;
 }
 
+/** Broadcast when the host moves on: the next question appears after `durationMs`. */
+export interface NextQuestionLoadingPayload {
+  index: number;
+  total: number;
+  durationMs: number;
+}
+
 export interface SubmitAnswerPayload {
   playerId: string;
   name: string;
@@ -116,6 +123,7 @@ export const QUIZ_EVENTS = {
   hintsEnabledChanged: "hints-enabled-changed",
   useHint: "USE_HINT",
   hintResult: "hint-result",
+  nextQuestionLoading: "next-question-loading",
 } as const;
 
 export function quizChannelName(gameId: string) {
