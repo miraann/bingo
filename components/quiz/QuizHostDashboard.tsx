@@ -150,7 +150,7 @@ export function QuizHostDashboard({
                 <span className="text-xs font-bold text-gray-400 self-start">
                   {topicKey ? "بابەت هەڵبژێردرا ✓" : "کرتە لەسەر بابەتێک بکە بۆ هەڵبژاردنی 👇"}
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
                   {topics.map(t => {
                     const selected = topicKey === t.key;
                     return (

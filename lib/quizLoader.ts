@@ -1,12 +1,35 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Quiz question loading — topic-based JSON files under data/questions/.
-   To add a new category: drop a new JSON file in data/questions/ following the
-   QuizQuestion shape below, then register it in TOPIC_REGISTRY.
+   To add a new category: drop a new JSON file in data/questions/ following
+   either RawQuizQuestion shape below, then register it in TOPIC_REGISTRY.
 ───────────────────────────────────────────────────────────────────────────── */
 
 import sportQuestions from "@/data/questions/sport.json";
 import historyQuestions from "@/data/questions/history.json";
 import scienceQuestions from "@/data/questions/science.json";
+import kurdishKnowledgeQuestions from "@/data/questions/kurdish-knowledge.json";
+
+const DEFAULT_TIME_LIMIT = 15;
+
+/** JSON files use either an index + timeLimit, or the answer text + difficulty. */
+type RawQuizQuestion = {
+  id: number;
+  category?: string;
+  question: string;
+  options: string[];
+} & (
+  | { correctAnswer: number; timeLimit?: number }
+  | { answer: string; difficulty?: string }
+);
+
+/** English category names in some files, shown to players in Kurdish. */
+const CATEGORY_LABELS: Record<string, string> = {
+  Geography: "جوگرافیا",
+  History: "مێژوو",
+  "Famous Person": "کەسایەتیی ناودار",
+  Music: "مۆسیقا",
+  Movie: "فیلم",
+};
 
 export interface QuizQuestion {
   id: number;
@@ -32,10 +55,30 @@ export interface QuizTopic {
   questions: QuizQuestion[];
 }
 
+function normalizeQuestions(raw: RawQuizQuestion[], topicLabel: string): QuizQuestion[] {
+  return raw.flatMap(q => {
+    const correctAnswer = "correctAnswer" in q ? q.correctAnswer : q.options.indexOf(q.answer);
+    if (correctAnswer < 0 || correctAnswer >= q.options.length) return [];
+    return [{
+      id: q.id,
+      category: q.category ? CATEGORY_LABELS[q.category] ?? q.category : topicLabel,
+      question: q.question,
+      options: q.options,
+      correctAnswer,
+      timeLimit: ("timeLimit" in q ? q.timeLimit : undefined) ?? DEFAULT_TIME_LIMIT,
+    }];
+  });
+}
+
+function topic(key: string, label: string, raw: RawQuizQuestion[]): QuizTopic {
+  return { key, label, questions: normalizeQuestions(raw, label) };
+}
+
 const TOPIC_REGISTRY: QuizTopic[] = [
-  { key: "sport", label: "وەرزش", questions: sportQuestions as QuizQuestion[] },
-  { key: "history", label: "مێژوو", questions: historyQuestions as QuizQuestion[] },
-  { key: "science", label: "زانست", questions: scienceQuestions as QuizQuestion[] },
+  topic("sport", "وەرزش", sportQuestions as RawQuizQuestion[]),
+  topic("history", "مێژوو", historyQuestions as RawQuizQuestion[]),
+  topic("science", "زانست", scienceQuestions as RawQuizQuestion[]),
+  topic("kurdish", "زانیاری کوردی", kurdishKnowledgeQuestions as RawQuizQuestion[]),
 ];
 
 export interface QuizTopicSummary {

@@ -134,7 +134,6 @@ export function useQuizPlayer(gameId: string) {
       setTotalQuestions(payload.total);
       setStartedAt(payload.startedAt);
       setPaused(false);
-      setTopicLabel(payload.question.category);
       setSelectedAnswer(null);
       setHasSubmitted(false);
       setCorrectAnswer(null);

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
-import { loadQuizQuestions, toPublicQuestion, type QuizQuestion } from "@/lib/quizLoader";
+import { getTopicLabel, loadQuizQuestions, toPublicQuestion, type QuizQuestion } from "@/lib/quizLoader";
 import {
   QUIZ_EVENTS,
   quizChannelName,
@@ -217,7 +217,7 @@ export function useQuizHost(gameId: string) {
       const payload: QuizStateSyncPayload = {
         phase: phaseRef.current,
         topicKey: topicKeyRef.current,
-        topicLabel: question?.category ?? "",
+        topicLabel: topicKeyRef.current ? getTopicLabel(topicKeyRef.current) : "",
         index: currentIndexRef.current,
         total: questionsRef.current.length,
         question: publicQuestion,
@@ -299,7 +299,7 @@ export function useQuizHost(gameId: string) {
     questionPoolRef.current = loadQuizQuestions(key);
     questionsRef.current = questionPoolRef.current;
     setTopicKeyState(key);
-    const label = questionPoolRef.current[0]?.category ?? key;
+    const label = getTopicLabel(key);
     channelRef.current?.send({
       type: "broadcast",
       event: QUIZ_EVENTS.gameModeChanged,
