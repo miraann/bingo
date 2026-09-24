@@ -25,7 +25,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
 
   const {
     player, phase, topicLabel, question, questionIndex, totalQuestions,
-    startedAt, paused, selectedAnswer, hasSubmitted, correctAnswer, leaderboard,
+    startedAt, paused, awaitingStart, selectedAnswer, hasSubmitted, correctAnswer, leaderboard,
     feedback, myEntry, connected, join, submitAnswer,
     hintsEnabled, usedHints, pendingHint, removedOptions, hintedAnswer, requestHint,
   } = useQuizPlayer(gameId);
@@ -182,7 +182,10 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
             </div>
           )}
 
-          {!revealed && paused && (
+          {!revealed && awaitingStart && (
+            <p className="text-sm font-bold text-emerald-600">⏳ چاوەڕێی دەستپێکردنی پرسیار بکە...</p>
+          )}
+          {!revealed && paused && !awaitingStart && (
             <p className="text-sm font-bold text-emerald-600">⏸ یاریمان وەستاوە، چاوەڕێی بکە...</p>
           )}
           {!revealed && !paused && hasSubmitted && (

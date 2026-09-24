@@ -87,6 +87,7 @@ export function useQuizPlayer(gameId: string) {
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
+  const [awaitingStart, setAwaitingStart] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
@@ -133,7 +134,8 @@ export function useQuizPlayer(gameId: string) {
       setQuestionIndex(payload.index);
       setTotalQuestions(payload.total);
       setStartedAt(payload.startedAt);
-      setPaused(false);
+      setPaused(payload.awaitingStart);
+      setAwaitingStart(payload.awaitingStart);
       setSelectedAnswer(null);
       setHasSubmitted(false);
       setCorrectAnswer(null);
@@ -162,6 +164,7 @@ export function useQuizPlayer(gameId: string) {
     channel.on("broadcast", { event: QUIZ_EVENTS.timerPauseChanged }, ({ payload }: { payload: TimerPauseChangedPayload }) => {
       setPaused(payload.paused);
       setStartedAt(payload.startedAt);
+      if (!payload.paused) setAwaitingStart(false);
     });
 
     channel.on("broadcast", { event: QUIZ_EVENTS.answerReveal }, ({ payload }: { payload: AnswerRevealPayload }) => {
@@ -180,6 +183,7 @@ export function useQuizPlayer(gameId: string) {
       setQuestionIndex(0);
       setStartedAt(null);
       setPaused(false);
+      setAwaitingStart(false);
       setSelectedAnswer(null);
       setHasSubmitted(false);
       setCorrectAnswer(null);
@@ -198,6 +202,7 @@ export function useQuizPlayer(gameId: string) {
       setQuestion(payload.question);
       setStartedAt(payload.startedAt);
       setPaused(payload.paused);
+      setAwaitingStart(payload.awaitingStart ?? false);
       setCorrectAnswer(payload.correctAnswer);
       setLeaderboard(payload.leaderboard);
       setHintsEnabled(payload.hintsEnabled ?? false);
@@ -273,7 +278,7 @@ export function useQuizPlayer(gameId: string) {
   const myEntry = player ? leaderboard.find(e => e.playerId === player.playerId) ?? null : null;
 
   return {
-    player, phase, topicLabel, question, questionIndex, totalQuestions, startedAt, paused,
+    player, phase, topicLabel, question, questionIndex, totalQuestions, startedAt, paused, awaitingStart,
     selectedAnswer, hasSubmitted, correctAnswer, leaderboard, feedback, myEntry, connected,
     join, submitAnswer,
     hintsEnabled, usedHints, pendingHint, removedOptions, hintedAnswer, requestHint,

@@ -34,7 +34,7 @@ export function QuizHostDashboard({
 
   const {
     phase, players, connected, topicKey, setTopic,
-    currentIndex, totalQuestions, currentQuestion, startedAt, paused,
+    currentIndex, totalQuestions, currentQuestion, startedAt, paused, awaitingStart,
     submittedCount, correctAnswer, leaderboard,
     questionDurationSec, setQuestionDuration,
     questionCount, setQuestionCount,
@@ -315,7 +315,7 @@ export function QuizHostDashboard({
 
       {/* ── Toolbar: pause / reset / end / music / bell / timer ─────────────── */}
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 w-full max-w-2xl">
-        {!revealed && (
+        {!revealed && !awaitingStart && (
           <motion.button
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.9 }}
@@ -417,7 +417,7 @@ export function QuizHostDashboard({
           {!revealed && startedAt != null && (
             <CountdownRing totalMs={(questionDurationSec ?? currentQuestion.timeLimit) * 1000} startedAt={startedAt} paused={paused} />
           )}
-          {paused && !revealed && (
+          {paused && !awaitingStart && !revealed && (
             <p className="text-sm font-bold text-emerald-600">⏸ وەستاوە</p>
           )}
 
@@ -432,7 +432,16 @@ export function QuizHostDashboard({
             disabled
           />
 
-          {!revealed ? (
+          {awaitingStart && !revealed ? (
+            <motion.button
+              whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+              onClick={resumeQuestion}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg rounded-2xl px-10 py-3.5 shadow-[0_6px_24px_rgba(16,185,129,0.45)] cursor-pointer"
+            >
+              <Play size={22} strokeWidth={2.5} />
+              دەستپێکردن
+            </motion.button>
+          ) : !revealed ? (
             <motion.button
               whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
               onClick={revealAnswer}

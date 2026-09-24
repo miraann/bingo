@@ -29,6 +29,8 @@ export interface QuestionShownPayload {
   index: number;
   total: number;
   startedAt: number;
+  /** Every question opens frozen at full time until the host presses Start. */
+  awaitingStart: boolean;
 }
 
 export interface SubmitAnswerPayload {
@@ -95,6 +97,7 @@ export interface QuizStateSyncPayload {
   question: PublicQuizQuestion | null;
   startedAt: number | null;
   paused: boolean;
+  awaitingStart: boolean;
   correctAnswer: number | null;
   leaderboard: LeaderboardEntry[];
   hintsEnabled: boolean;
