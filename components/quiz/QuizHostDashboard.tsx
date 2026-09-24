@@ -116,96 +116,107 @@ export function QuizHostDashboard({
   /* ═══════════════════════════════ LOBBY ═══════════════════════════════ */
   if (phase === "LOBBY") {
     return (
-      <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8 overflow-y-auto">
-        <div className="flex flex-col items-center gap-1">
-          <h1 className="text-2xl md:text-3xl font-black text-gray-800">داشبۆردی کویز</h1>
-          {ConnectionBadge}
-        </div>
-
-        {gameId && joinUrl && <QRPanel gameId={gameId} joinUrl={joinUrl} />}
-
-        <div className="flex flex-col items-center gap-2 w-full max-w-xs">
-          <span className="text-xs font-bold text-gray-400 self-start">
-            {topicKey ? "بابەت هەڵبژێردرا ✓" : "کرتە لەسەر بابەتێک بکە بۆ هەڵبژاردنی 👇"}
-          </span>
-          <div className="grid grid-cols-2 gap-2 w-full">
-            {topics.map(t => {
-              const selected = topicKey === t.key;
-              return (
-                <motion.button
-                  key={t.key}
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setTopic(t.key)}
-                  aria-pressed={selected}
-                  className={`
-                    relative rounded-2xl px-3 py-3.5 font-bold text-sm text-center cursor-pointer
-                    border-2 transition-colors duration-150
-                    ${selected
-                      ? "bg-emerald-600 border-emerald-600 text-white shadow-lg"
-                      : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300 hover:bg-emerald-50"}
-                  `}
-                >
-                  {selected && (
-                    <span className="absolute top-1.5 left-1.5 w-4 h-4 rounded-full bg-white flex items-center justify-center">
-                      <Check size={11} strokeWidth={3} className="text-emerald-600" />
-                    </span>
-                  )}
-                  {t.label}
-                  <span className="block text-[10px] font-normal opacity-70 mt-0.5">{t.count} پرسیار</span>
-                </motion.button>
-              );
-            })}
+      <div dir="rtl" className="h-dvh bg-white overflow-y-auto">
+        {/* min-h-full inner wrapper: centered when it fits, top stays reachable when it scrolls */}
+        <div className="min-h-full flex flex-col items-center justify-center gap-5 sm:gap-6 px-4 py-6 sm:py-8 w-full max-w-5xl mx-auto">
+          <div className="flex flex-col items-center gap-1">
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-800">داشبۆردی کویز</h1>
+            {ConnectionBadge}
           </div>
-        </div>
 
-        {topicKey && (
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-xs font-bold text-gray-400">ژمارەی پرسیار بۆ یاری</span>
-            <div className="flex gap-1.5" dir="ltr">
-              {QUESTION_COUNT_PRESETS.map(n => (
-                <motion.button
-                  key={n} whileTap={{ scale: 0.92 }}
-                  onClick={() => selectCountPreset(n)}
-                  className={`
-                    px-2.5 py-1 rounded-xl text-xs font-black cursor-pointer transition-all duration-200
-                    ${questionCount === n ? "bg-emerald-600 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}
-                  `}
-                >
-                  {n}
-                </motion.button>
-              ))}
-              <input
-                type="number" min="1" max={maxQuestions} value={customCountInput}
-                onChange={e => handleCustomCountInput(e.target.value)}
-                className="w-14 text-center border-2 border-gray-200 rounded-xl text-xs font-bold py-1 focus:border-emerald-400 focus:outline-none"
-              />
+          <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-5 sm:gap-6 lg:gap-12 w-full">
+            {gameId && joinUrl && (
+              <div className="flex-shrink-0 lg:sticky lg:top-8">
+                <QRPanel gameId={gameId} joinUrl={joinUrl} />
+              </div>
+            )}
+
+            <div className="flex flex-col items-center gap-5 sm:gap-6 w-full max-w-md lg:max-w-lg">
+              <div className="flex flex-col items-center gap-2 w-full">
+                <span className="text-xs font-bold text-gray-400 self-start">
+                  {topicKey ? "بابەت هەڵبژێردرا ✓" : "کرتە لەسەر بابەتێک بکە بۆ هەڵبژاردنی 👇"}
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full">
+                  {topics.map(t => {
+                    const selected = topicKey === t.key;
+                    return (
+                      <motion.button
+                        key={t.key}
+                        type="button"
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setTopic(t.key)}
+                        aria-pressed={selected}
+                        className={`
+                          relative rounded-2xl px-3 py-3.5 font-bold text-sm text-center cursor-pointer
+                          border-2 transition-colors duration-150
+                          ${selected
+                            ? "bg-emerald-600 border-emerald-600 text-white shadow-lg"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300 hover:bg-emerald-50"}
+                        `}
+                      >
+                        {selected && (
+                          <span className="absolute top-1.5 left-1.5 w-4 h-4 rounded-full bg-white flex items-center justify-center">
+                            <Check size={11} strokeWidth={3} className="text-emerald-600" />
+                          </span>
+                        )}
+                        {t.label}
+                        <span className="block text-[10px] font-normal opacity-70 mt-0.5">{t.count} پرسیار</span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {topicKey && (
+                <div className="flex flex-col items-center gap-1.5">
+                  <span className="text-xs font-bold text-gray-400">ژمارەی پرسیار بۆ یاری</span>
+                  <div className="flex flex-wrap justify-center gap-1.5" dir="ltr">
+                    {QUESTION_COUNT_PRESETS.map(n => (
+                      <motion.button
+                        key={n} whileTap={{ scale: 0.92 }}
+                        onClick={() => selectCountPreset(n)}
+                        className={`
+                          px-2.5 py-1 rounded-xl text-xs font-black cursor-pointer transition-all duration-200
+                          ${questionCount === n ? "bg-emerald-600 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}
+                        `}
+                      >
+                        {n}
+                      </motion.button>
+                    ))}
+                    <input
+                      type="number" min="1" max={maxQuestions} value={customCountInput}
+                      onChange={e => handleCustomCountInput(e.target.value)}
+                      className="w-14 text-center border-2 border-gray-200 rounded-xl text-xs font-bold py-1 focus:border-emerald-400 focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-300">لە کۆی {maxQuestions} پرسیار</span>
+                </div>
+              )}
+
+              <PlayerLobbyList players={players} />
+
+              <GameModeToggle mode={mode} onChange={onModeChange} />
+
+              <motion.button
+                whileHover={topicKey ? { scale: 1.03 } : undefined}
+                whileTap={topicKey ? { scale: 0.95 } : undefined}
+                onClick={startQuiz}
+                disabled={!topicKey}
+                className={`
+                  w-full sm:w-auto font-black rounded-2xl px-8 py-3.5 text-lg text-white shadow-[0_6px_24px_rgba(16,185,129,0.45)]
+                  ${topicKey ? "bg-emerald-600 hover:bg-emerald-700 cursor-pointer" : "bg-gray-200 cursor-not-allowed"}
+                `}
+              >
+                دەستپێکردنی کویز
+              </motion.button>
+
+              <button onClick={handleNewGame} className="text-xs text-gray-300 hover:text-gray-500 underline cursor-pointer">
+                دروستکردنی یاریی نوێ
+              </button>
             </div>
-            <span className="text-[10px] text-gray-300">لە کۆی {maxQuestions} پرسیار</span>
           </div>
-        )}
-
-        <PlayerLobbyList players={players} />
-
-        <GameModeToggle mode={mode} onChange={onModeChange} />
-
-        <motion.button
-          whileHover={topicKey ? { scale: 1.03 } : undefined}
-          whileTap={topicKey ? { scale: 0.95 } : undefined}
-          onClick={startQuiz}
-          disabled={!topicKey}
-          className={`
-            font-black rounded-2xl px-8 py-3.5 text-lg text-white shadow-[0_6px_24px_rgba(16,185,129,0.45)]
-            ${topicKey ? "bg-emerald-600 hover:bg-emerald-700 cursor-pointer" : "bg-gray-200 cursor-not-allowed"}
-          `}
-        >
-          دەستپێکردنی کویز
-        </motion.button>
-
-        <button onClick={handleNewGame} className="text-xs text-gray-300 hover:text-gray-500 underline cursor-pointer">
-          دروستکردنی یاریی نوێ
-        </button>
+        </div>
       </div>
     );
   }
@@ -213,7 +224,7 @@ export function QuizHostDashboard({
   /* ═══════════════════════════════ ENDED ═══════════════════════════════ */
   if (phase === "ENDED") {
     return (
-      <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8 overflow-y-auto">
+      <div dir="rtl" className="min-h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8">
         <h1 className="text-2xl md:text-3xl font-black text-gray-800">کویز تەواو بوو 🎉</h1>
         {leaderboard.length === 0 && (
           <>
@@ -255,7 +266,7 @@ export function QuizHostDashboard({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.95 }}
                 transition={{ duration: 0.15 }}
-                className="absolute top-full mt-2 right-0 z-30 bg-white border border-gray-200 rounded-2xl shadow-xl p-3 w-64 max-h-72 overflow-y-auto"
+                className="absolute top-full mt-2 right-0 z-30 bg-white border border-gray-200 rounded-2xl shadow-xl p-3 w-64 max-w-[calc(100vw-1.5rem)] max-h-72 overflow-y-auto"
               >
                 {playersWithScores.length === 0 ? (
                   <p className="text-xs text-gray-300 text-center py-2">هیچ یاریزانێک نییە</p>
@@ -282,7 +293,7 @@ export function QuizHostDashboard({
       </div>
 
       {/* ── Toolbar: pause / reset / end / music / bell / timer ─────────────── */}
-      <div className="flex flex-wrap items-center justify-center gap-3 w-full max-w-2xl">
+      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 w-full max-w-2xl">
         {!revealed && (
           <motion.button
             whileHover={{ scale: 1.06 }}
@@ -290,7 +301,7 @@ export function QuizHostDashboard({
             onClick={paused ? resumeQuestion : pauseQuestion}
             title={paused ? "بەردەوامبوون" : "وەستاندن"}
             className={`
-              flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-16 h-16
+              flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-14 h-14 sm:w-16 sm:h-16
               transition-colors duration-200 cursor-pointer
               ${paused ? "bg-emerald-500 text-white shadow-[0_4px_14px_rgba(16,185,129,0.40)]" : "bg-gray-100 hover:bg-emerald-50 text-gray-400 hover:text-emerald-600"}
             `}
@@ -304,7 +315,7 @@ export function QuizHostDashboard({
           whileTap={{ scale: 0.9 }}
           onClick={resetQuiz}
           title="ڕیست کردنەوە"
-          className="flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-16 h-16 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors duration-200 cursor-pointer"
+          className="flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-14 h-14 sm:w-16 sm:h-16 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors duration-200 cursor-pointer"
         >
           <RotateCcw size={22} strokeWidth={2.5} />
           <span className="text-[10px] font-bold">ڕیست</span>
@@ -314,7 +325,7 @@ export function QuizHostDashboard({
           whileTap={{ scale: 0.9 }}
           onClick={endQuiz}
           title="کۆتایی یاری"
-          className="flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-16 h-16 bg-gray-100 hover:bg-amber-50 text-gray-400 hover:text-amber-500 transition-colors duration-200 cursor-pointer"
+          className="flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-14 h-14 sm:w-16 sm:h-16 bg-gray-100 hover:bg-amber-50 text-gray-400 hover:text-amber-500 transition-colors duration-200 cursor-pointer"
         >
           <Flag size={22} strokeWidth={2.5} />
           <span className="text-[10px] font-bold">کۆتایی</span>
@@ -338,13 +349,13 @@ export function QuizHostDashboard({
             <Timer size={14} strokeWidth={2.5} />
             <span className="text-xs font-bold tracking-widest uppercase">کاتی پرسیار</span>
           </div>
-          <div className="flex gap-2" dir="ltr">
+          <div className="flex gap-1.5 sm:gap-2" dir="ltr">
             {TIMER_PRESETS.map(s => (
               <motion.button
                 key={s} whileTap={{ scale: 0.92 }}
                 onClick={() => selectPreset(s)}
                 className={`
-                  px-4 py-2.5 rounded-xl text-base font-black cursor-pointer transition-all duration-200
+                  px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-sm sm:text-base font-black cursor-pointer transition-all duration-200
                   ${questionDurationSec === s ? "bg-emerald-600 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}
                 `}
               >
@@ -354,7 +365,7 @@ export function QuizHostDashboard({
             <input
               type="number" min="3" max="120" value={customInput}
               onChange={e => handleCustomInput(e.target.value)}
-              className="w-16 text-center border-2 border-gray-200 rounded-xl text-base font-bold py-2 focus:border-emerald-400 focus:outline-none"
+              className="w-14 sm:w-16 text-center border-2 border-gray-200 rounded-xl text-sm sm:text-base font-bold py-2 focus:border-emerald-400 focus:outline-none"
             />
           </div>
         </div>
@@ -373,7 +384,7 @@ export function QuizHostDashboard({
             <p className="text-sm font-bold text-emerald-600">⏸ وەستاوە</p>
           )}
 
-          <h2 className="text-xl md:text-2xl font-black text-gray-800 text-center max-w-2xl mt-6 md:mt-8 mb-4 md:mb-6">
+          <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-black text-gray-800 text-center max-w-3xl px-2 mt-4 sm:mt-6 md:mt-8 mb-3 sm:mb-4 md:mb-6">
             {currentQuestion.question}
           </h2>
 

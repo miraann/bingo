@@ -30,7 +30,7 @@ export function QuizWinnerModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.85, y: 20 }}
             transition={{ type: "spring", stiffness: 280, damping: 22 }}
-            className="bg-white rounded-3xl shadow-2xl px-8 py-8 max-w-sm w-full flex flex-col items-center gap-3 text-center"
+            className="bg-white rounded-3xl shadow-2xl px-5 py-6 sm:px-8 sm:py-8 max-w-sm w-full max-h-[90dvh] overflow-y-auto flex flex-col items-center gap-3 text-center"
           >
             <motion.div
               animate={{ rotate: [0, -10, 10, -10, 0], scale: [1, 1.1, 1] }}

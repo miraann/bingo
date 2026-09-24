@@ -271,7 +271,7 @@ export function BingoDashboard({ mode, onModeChange }: { mode: HostMode; onModeC
   ═══════════════════════════════════════════════════════════════════════ */
   if (phase === "LOBBY") {
     return (
-      <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8 overflow-y-auto">
+      <div dir="rtl" className="min-h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8">
         <div className="flex flex-col items-center gap-1">
           <h1 className="text-2xl md:text-3xl font-black text-gray-800">داشبۆردی بینگۆ</h1>
           {ConnectionBadge}
@@ -304,7 +304,7 @@ export function BingoDashboard({ mode, onModeChange }: { mode: HostMode; onModeC
   ═══════════════════════════════════════════════════════════════════════ */
   if (phase === "ENDED") {
     return (
-      <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8 overflow-y-auto">
+      <div dir="rtl" className="min-h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8">
         <h1 className="text-2xl md:text-3xl font-black text-gray-800">یاری تەواو بوو 🎉</h1>
         <div className="flex flex-col items-center gap-2 max-w-sm w-full">
           {winners.length === 0 && <p className="text-gray-400 text-sm">هیچ براوەیەک نەبوو</p>}

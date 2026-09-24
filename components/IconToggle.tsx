@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 const SIZE_CLASSES = {
   md: "w-20 md:w-24 min-h-[60px] md:min-h-[68px] px-1.5 py-2",
-  lg: "w-24 md:w-28 min-h-[76px] md:min-h-[84px] px-2 py-3",
+  lg: "w-16 sm:w-24 md:w-28 min-h-[56px] sm:min-h-[76px] md:min-h-[84px] px-1.5 py-2 sm:px-2 sm:py-3",
 } as const;
 
 const ICON_SIZE = { md: 20, lg: 28 } as const;
