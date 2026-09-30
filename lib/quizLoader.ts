@@ -8,6 +8,7 @@ import sportQuestions from "@/data/questions/sport.json";
 import historyQuestions from "@/data/questions/history.json";
 import scienceQuestions from "@/data/questions/science.json";
 import kurdishKnowledgeQuestions from "@/data/questions/kurdish-knowledge.json";
+import folkloreQuestions from "@/data/questions/Folklor.json";
 
 const DEFAULT_TIME_LIMIT = 15;
 
@@ -79,6 +80,7 @@ const TOPIC_REGISTRY: QuizTopic[] = [
   topic("history", "مێژوو", historyQuestions as RawQuizQuestion[]),
   topic("science", "زانست", scienceQuestions as RawQuizQuestion[]),
   topic("kurdish", "زانیاری کوردی", kurdishKnowledgeQuestions as RawQuizQuestion[]),
+  topic("riddles", "مەتەڵ", folkloreQuestions as RawQuizQuestion[]),
 ];
 
 export interface QuizTopicSummary {

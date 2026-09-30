@@ -152,7 +152,7 @@ export function QuizHostDashboard({
                 <span className="text-xs font-bold text-gray-400 self-start">
                   {topicKey ? "بابەت هەڵبژێردرا ✓" : "کرتە لەسەر بابەتێک بکە بۆ هەڵبژاردنی 👇"}
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
+                <div className="flex flex-wrap justify-center gap-2 w-full">
                   {topics.map(t => {
                     const selected = topicKey === t.key;
                     return (
@@ -164,7 +164,8 @@ export function QuizHostDashboard({
                         onClick={() => setTopic(t.key)}
                         aria-pressed={selected}
                         className={`
-                          relative rounded-2xl px-3 py-3.5 font-bold text-sm text-center cursor-pointer
+                          relative w-[calc(50%-0.25rem)] sm:w-[calc(25%-0.375rem)]
+                          rounded-2xl px-3 py-3.5 font-bold text-sm text-center cursor-pointer
                           border-2 transition-colors duration-150
                           ${selected
                             ? "bg-emerald-600 border-emerald-600 text-white shadow-lg"
