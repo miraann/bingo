@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { generateBingoCard, type BingoCard } from "@/lib/bingo";
 import { generatePlayerId } from "@/lib/id";
 import { loadPlayerProfile, savePlayerProfile } from "@/lib/playerProfile";
+import { useChannelReconnect } from "@/hooks/useChannelReconnect";
 import {
   GAME_EVENTS,
   gameChannelName,
@@ -51,6 +52,28 @@ function savePersisted(gameId: string, p: PersistedPlayer) {
   } catch {}
 }
 
+/** Marked cells, kept locally so a refresh or reconnect doesn't wipe them. */
+function markedStorageKey(gameId: string) {
+  return `bingo:marked:${gameId}`;
+}
+
+function loadMarked(gameId: string): Set<number> {
+  if (typeof window === "undefined" || !gameId) return new Set();
+  try {
+    const raw = window.localStorage.getItem(markedStorageKey(gameId));
+    return new Set(raw ? (JSON.parse(raw) as number[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveMarked(gameId: string, marked: Set<number>) {
+  if (!gameId) return;
+  try {
+    window.localStorage.setItem(markedStorageKey(gameId), JSON.stringify([...marked]));
+  } catch {}
+}
+
 /** Drives the player side of a game: registers a name/emoji, generates and
  *  persists a personal card, mirrors the host's broadcasts, and sends bingo
  *  claims for the host to validate. */
@@ -60,18 +83,18 @@ export function usePlayerGame(gameId: string) {
   const [phase, setPhase] = useState<GamePhase>("LOBBY");
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
   const [currentNumber, setCurrentNumber] = useState<number | null>(null);
-  const [marked, setMarked] = useState<Set<number>>(new Set());
+  const [marked, setMarked] = useState<Set<number>>(() => loadMarked(gameId));
   const [autoMarkEnabled, setAutoMarkEnabled] = useState(true);
   const [hintsEnabled, setHintsEnabled] = useState(true);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>("idle");
   const [announcements, setAnnouncements] = useState<BingoResultPayload[]>([]);
-  const [connected, setConnected] = useState(false);
-
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const { attempt, connected, onStatus, reconnect } = useChannelReconnect(channelRef, GAME_EVENTS.stateSyncRequest);
   const playerRef = useRef(player);
   const autoMarkEnabledRef = useRef(autoMarkEnabled);
   useEffect(() => { playerRef.current = player; }, [player]);
   useEffect(() => { autoMarkEnabledRef.current = autoMarkEnabled; }, [autoMarkEnabled]);
+  useEffect(() => { saveMarked(gameId, marked); }, [gameId, marked]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -106,6 +129,10 @@ export function usePlayerGame(gameId: string) {
       setCalledNumbers(payload.calledNumbers);
       setCurrentNumber(payload.currentNumber);
       setAutoMarkEnabled(payload.autoMarkEnabled);
+      // Catch up on numbers drawn while this phone was offline.
+      if (payload.autoMarkEnabled && payload.calledNumbers.length > 0) {
+        setMarked(prev => new Set([...prev, ...payload.calledNumbers]));
+      }
       setHintsEnabled(payload.hintsEnabled);
     });
 
@@ -125,8 +152,10 @@ export function usePlayerGame(gameId: string) {
       }
     });
 
+    let disposed = false;
     channel.subscribe(status => {
-      setConnected(status === "SUBSCRIBED");
+      if (disposed) return;
+      onStatus(status);
       if (status === "SUBSCRIBED") {
         channel.send({ type: "broadcast", event: GAME_EVENTS.stateSyncRequest, payload: {} });
         if (playerRef.current) {
@@ -141,10 +170,11 @@ export function usePlayerGame(gameId: string) {
     });
 
     return () => {
+      disposed = true;
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [gameId]);
+  }, [gameId, attempt, onStatus]);
 
   const join = useCallback((name: string, emoji: string) => {
     const playerId = initialPlayer.current?.playerId ?? generatePlayerId();
@@ -196,6 +226,7 @@ export function usePlayerGame(gameId: string) {
     setClaimStatus,
     announcements,
     connected,
+    reconnect,
     join,
     toggleMark,
     claimBingo,

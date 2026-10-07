@@ -8,6 +8,7 @@ import { useWakeLock } from "@/hooks/useWakeLock";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { PlayerBingoCard } from "@/components/PlayerBingoCard";
 import { WinnerBanner } from "@/components/WinnerBanner";
+import { ConnectionBanner } from "@/components/ConnectionBanner";
 import { groupOf, patternLabel } from "@/lib/bingo";
 
 export function BingoPlayClient({ gameId }: { gameId: string }) {
@@ -18,7 +19,7 @@ export function BingoPlayClient({ gameId }: { gameId: string }) {
 
   const {
     player, phase, calledNumbers, calledSet, currentNumber, marked, autoMarkEnabled, hintsEnabled,
-    claimStatus, setClaimStatus, announcements, connected, join, toggleMark, claimBingo,
+    claimStatus, setClaimStatus, announcements, connected, reconnect, join, toggleMark, claimBingo,
   } = usePlayerGame(gameId);
 
   const calledCount = calledSet.size;
@@ -33,6 +34,15 @@ export function BingoPlayClient({ gameId }: { gameId: string }) {
   }, [claimStatus, setClaimStatus]);
 
   const latestAnnouncement = announcements[0] ?? null;
+
+  return (
+    <>
+      {player && <ConnectionBanner connected={connected} onReconnect={reconnect} />}
+      {renderContent()}
+    </>
+  );
+
+  function renderContent() {
 
   /* ── Registration ──────────────────────────────────────────────────────── */
   if (!player) {
@@ -226,4 +236,5 @@ export function BingoPlayClient({ gameId }: { gameId: string }) {
       </AnimatePresence>
     </div>
   );
+  }
 }

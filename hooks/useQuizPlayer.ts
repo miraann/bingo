@@ -5,6 +5,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { generatePlayerId } from "@/lib/id";
 import { loadPlayerProfile, savePlayerProfile } from "@/lib/playerProfile";
+import { useChannelReconnect } from "@/hooks/useChannelReconnect";
 import type { PublicQuizQuestion } from "@/lib/quizLoader";
 import {
   QUIZ_EVENTS,
@@ -75,6 +76,35 @@ function saveUsedHints(gameId: string, hints: HintType[]) {
   } catch {}
 }
 
+/** This player's answer to the current question, so a reconnect or refresh
+ *  doesn't show it as unanswered (or let them answer twice). */
+interface SavedAnswer {
+  index: number;
+  answer: number;
+}
+
+function answerStorageKey(gameId: string) {
+  return `quiz:answer:${gameId}`;
+}
+
+function loadAnswer(gameId: string): SavedAnswer | null {
+  if (typeof window === "undefined" || !gameId) return null;
+  try {
+    const raw = window.localStorage.getItem(answerStorageKey(gameId));
+    return raw ? (JSON.parse(raw) as SavedAnswer) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveAnswer(gameId: string, a: SavedAnswer | null) {
+  if (!gameId) return;
+  try {
+    if (a) window.localStorage.setItem(answerStorageKey(gameId), JSON.stringify(a));
+    else window.localStorage.removeItem(answerStorageKey(gameId));
+  } catch {}
+}
+
 /** Drives the player side of a quiz round: registers a name/emoji, mirrors
  *  the host's question/reveal broadcasts, and submits answers for the host
  *  to score — this hook never decides correctness itself. */
@@ -94,7 +124,6 @@ export function useQuizPlayer(gameId: string) {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [connected, setConnected] = useState(false);
   const [hintsEnabled, setHintsEnabled] = useState(false);
   const [usedHints, setUsedHints] = useState<HintType[]>(() => loadUsedHints(gameId));
   const [pendingHint, setPendingHint] = useState<HintType | null>(null);
@@ -102,6 +131,7 @@ export function useQuizPlayer(gameId: string) {
   const [hintedAnswer, setHintedAnswer] = useState<number | null>(null);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const { attempt, connected, onStatus, reconnect } = useChannelReconnect(channelRef, QUIZ_EVENTS.stateSyncRequest);
   const playerRef = useRef(player);
   const startedAtRef = useRef<number | null>(null);
   const pausedRef = useRef(false);
@@ -186,6 +216,7 @@ export function useQuizPlayer(gameId: string) {
     });
 
     channel.on("broadcast", { event: QUIZ_EVENTS.quizReset }, () => {
+      saveAnswer(gameId, null);
       setPhase("LOBBY");
       setQuestion(null);
       setQuestionIndex(0);
@@ -215,10 +246,24 @@ export function useQuizPlayer(gameId: string) {
       setCorrectAnswer(payload.correctAnswer);
       setLeaderboard(payload.leaderboard);
       setHintsEnabled(payload.hintsEnabled ?? false);
+      // Restore this player's answer if it was for this question; otherwise
+      // the question moved on while we were away, so start it fresh.
+      const saved = loadAnswer(gameId);
+      if (payload.question && saved?.index === payload.index) {
+        setSelectedAnswer(saved.answer);
+        setHasSubmitted(true);
+      } else if (payload.index !== questionIndexRef.current || payload.phase === "LOBBY") {
+        setSelectedAnswer(null);
+        setHasSubmitted(false);
+        setRemovedOptions([]);
+        setHintedAnswer(null);
+      }
     });
 
+    let disposed = false;
     channel.subscribe(status => {
-      setConnected(status === "SUBSCRIBED");
+      if (disposed) return;
+      onStatus(status);
       if (status === "SUBSCRIBED") {
         channel.send({ type: "broadcast", event: QUIZ_EVENTS.stateSyncRequest, payload: {} });
         if (playerRef.current) {
@@ -230,8 +275,8 @@ export function useQuizPlayer(gameId: string) {
       }
     });
 
-    return () => { supabase.removeChannel(channel); channelRef.current = null; };
-  }, [gameId]);
+    return () => { disposed = true; supabase.removeChannel(channel); channelRef.current = null; };
+  }, [gameId, attempt, onStatus]);
 
   const join = useCallback((name: string, emoji: string) => {
     const playerId = initialPlayer.current?.playerId ?? generatePlayerId();
@@ -247,6 +292,7 @@ export function useQuizPlayer(gameId: string) {
     if (pausedRef.current || !playerRef.current) return;
     setSelectedAnswer(answerIndex);
     setHasSubmitted(true);
+    saveAnswer(gameId, { index: questionIndexRef.current, answer: answerIndex });
     const timeElapsedMs = startedAtRef.current != null ? Date.now() - startedAtRef.current : 0;
     channelRef.current?.send({
       type: "broadcast",
@@ -259,7 +305,7 @@ export function useQuizPlayer(gameId: string) {
         timeElapsedMs,
       },
     });
-  }, []);
+  }, [gameId]);
 
   /** Asks the host for a hint on the current question; the host replies with
    *  the options to remove (50/50) or the correct answer. */
@@ -288,7 +334,7 @@ export function useQuizPlayer(gameId: string) {
 
   return {
     player, phase, topicLabel, question, questionIndex, totalQuestions, startedAt, paused, awaitingStart, loadingNext,
-    selectedAnswer, hasSubmitted, correctAnswer, leaderboard, feedback, myEntry, connected,
+    selectedAnswer, hasSubmitted, correctAnswer, leaderboard, feedback, myEntry, connected, reconnect,
     join, submitAnswer,
     hintsEnabled, usedHints, pendingHint, removedOptions, hintedAnswer, requestHint,
   };
