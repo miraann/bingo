@@ -43,34 +43,31 @@ export function WaitingAvatar({ emoji }: { emoji: string }) {
 
   return (
     <div className="flex flex-col items-center">
-      {/* Thought bubble above the avatar */}
-      <div className="h-24 w-48 flex items-end justify-center">
+      {/* One thought bubble per emoji, floating above the avatar */}
+      <div className="h-36 w-64 flex items-end justify-center gap-2">
         <AnimatePresence mode="wait">
-          <motion.div
-            key={i}
-            className="flex flex-col items-center"
-            initial={{ opacity: 0, scale: 0, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 15 } }}
-            exit={{ opacity: 0, scale: 0, y: 10, transition: { duration: 0.2 } }}
-          >
-            <motion.div
-              className="bg-white border-2 border-gray-200 rounded-full shadow-md px-4 h-16 flex items-center justify-center gap-1"
-              animate={{ y: [0, -4, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            >
-              {mood.props.map((p, n) => (
-                <motion.span
+          <motion.div key={i} className="flex items-end justify-center gap-2" exit={{ opacity: 0, scale: 0, transition: { duration: 0.2 } }}>
+            {mood.props.map((p, n) => {
+              const main = n === 1;
+              return (
+                <motion.div
                   key={n}
-                  className={n === 0 ? "text-3xl" : "text-xl"}
-                  initial={{ opacity: 0, scale: 0 }}
-                  animate={{ opacity: 1, scale: 1, transition: { delay: 0.15 + n * 0.15, type: "spring", stiffness: 400, damping: 12 } }}
+                  className={`flex flex-col items-center ${main ? "" : "mb-4"}`}
+                  initial={{ opacity: 0, scale: 0, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0, transition: { delay: n * 0.2, type: "spring", stiffness: 300, damping: 14 } }}
                 >
-                  {p}
-                </motion.span>
-              ))}
-            </motion.div>
-            <span className="mt-1 w-3 h-3 rounded-full bg-white border-2 border-gray-200 shadow-sm" />
-            <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-white border border-gray-200" />
+                  <motion.div
+                    className={`bg-white border-2 border-gray-200 rounded-full shadow-md flex items-center justify-center ${main ? "w-24 h-24" : "w-12 h-12"}`}
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 2 + n * 0.4, repeat: Infinity, ease: "easeInOut", delay: n * 0.3 }}
+                  >
+                    <span className={main ? "text-5xl" : "text-2xl"}>{p}</span>
+                  </motion.div>
+                  <span className="mt-1 w-2.5 h-2.5 rounded-full bg-white border-2 border-gray-200 shadow-sm" />
+                  <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-white border border-gray-200" />
+                </motion.div>
+              );
+            })}
           </motion.div>
         </AnimatePresence>
       </div>
