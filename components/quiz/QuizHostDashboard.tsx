@@ -134,20 +134,20 @@ export function QuizHostDashboard({
     return (
       <div dir="rtl" className="h-dvh bg-white overflow-y-auto">
         {/* min-h-full inner wrapper: centered when it fits, top stays reachable when it scrolls */}
-        <div className="min-h-full flex flex-col items-center justify-center gap-5 sm:gap-6 px-4 py-6 sm:py-8 w-full max-w-5xl mx-auto">
+        <div className="min-h-full flex flex-col items-center justify-center gap-5 sm:gap-6 px-4 py-6 sm:py-8 w-full max-w-5xl 2xl:max-w-6xl mx-auto">
           <div className="flex flex-col items-center gap-1">
             <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-800">داشبۆردی کویز</h1>
             {ConnectionBadge}
           </div>
 
-          <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-5 sm:gap-6 lg:gap-12 w-full">
+          <div className="flex flex-col md:flex-row sm:landscape:flex-row items-center md:items-start sm:landscape:items-start justify-center gap-5 sm:gap-6 md:gap-8 lg:gap-12 w-full">
             {gameId && joinUrl && (
-              <div className="flex-shrink-0 lg:sticky lg:top-8">
+              <div className="flex-shrink-0 md:sticky md:top-8 sm:landscape:sticky sm:landscape:top-4">
                 <QRPanel gameId={gameId} joinUrl={joinUrl} />
               </div>
             )}
 
-            <div className="flex flex-col items-center gap-5 sm:gap-6 w-full max-w-md lg:max-w-lg">
+            <div className="flex flex-col items-center gap-5 sm:gap-6 w-full max-w-md lg:max-w-lg 2xl:max-w-xl">
               <div className="flex flex-col items-center gap-2 w-full">
                 <span className="text-xs font-bold text-gray-400 self-start">
                   {topicKey ? "بابەت هەڵبژێردرا ✓" : "کرتە لەسەر بابەتێک بکە بۆ هەڵبژاردنی 👇"}
@@ -424,6 +424,7 @@ export function QuizHostDashboard({
             <p className="text-sm font-bold text-emerald-600">⏸ وەستاوە</p>
           )}
 
+          {(revealed || !awaitingStart) && (<>
           <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-black text-gray-800 text-center max-w-3xl px-2 mt-4 sm:mt-6 md:mt-8 mb-3 sm:mb-4 md:mb-6">
             {currentQuestion.question}
           </h2>
@@ -434,6 +435,7 @@ export function QuizHostDashboard({
             correctAnswer={revealed ? correctAnswer : null}
             disabled
           />
+          </>)}
 
           {awaitingStart && !revealed ? (
             <motion.button

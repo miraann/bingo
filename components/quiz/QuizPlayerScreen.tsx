@@ -144,6 +144,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
             <CountdownRing totalMs={question.timeLimit * 1000} startedAt={startedAt} paused={paused} />
           )}
 
+          {(revealed || !awaitingStart) && (<>
           <h2 className="text-lg md:text-xl font-black text-gray-800 text-center max-w-sm mt-4 mb-4">{question.question}</h2>
 
           <QuizAnswerButtons
@@ -155,6 +156,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
             removedOptions={removedOptions}
             hintedAnswer={hintedAnswer}
           />
+          </>)}
 
           {!revealed && hintsEnabled && (
             <div className="flex items-center justify-center gap-2 w-full max-w-md">

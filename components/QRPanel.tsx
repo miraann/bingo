@@ -4,8 +4,8 @@ import { QRCodeSVG } from "qrcode.react";
 
 export function QRPanel({ gameId, joinUrl }: { gameId: string; joinUrl: string }) {
   return (
-    <div className="flex flex-col items-center gap-3 bg-white rounded-3xl border-2 border-gray-100 shadow-xl p-4 sm:p-5 lg:p-6 w-full max-w-[18rem] sm:max-w-xs lg:max-w-sm">
-      <div className="bg-white p-3 rounded-2xl border border-gray-200 w-full max-w-[13rem] sm:max-w-[15rem] lg:max-w-[18rem]">
+    <div className="flex flex-col items-center gap-3 bg-white rounded-3xl border-2 border-gray-100 shadow-xl p-4 sm:p-5 lg:p-6 w-full max-w-[18rem] sm:max-w-xs lg:max-w-sm 2xl:max-w-md">
+      <div className="bg-white p-3 rounded-2xl border border-gray-200 w-full max-w-[min(13rem,40vh)] sm:max-w-[min(15rem,42vh)] lg:max-w-[min(18rem,45vh)] 2xl:max-w-[min(24rem,45vh)]">
         <QRCodeSVG value={joinUrl} size={256} level="M" fgColor="#111827" bgColor="#ffffff" style={{ width: "100%", height: "auto", display: "block" }} />
       </div>
       <div className="flex flex-col items-center gap-1">
