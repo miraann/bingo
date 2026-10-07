@@ -62,7 +62,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
   if (!player) {
     return (
       <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-5 px-6 py-8 overflow-y-auto">
-        <h1 className="text-xl font-black text-gray-800">بەشداریکردن لە کویز 🧠</h1>
+        <h1 className="text-xl font-black text-gray-800">بەشداریکردن لە پرسیار 🧠</h1>
         <div className="flex flex-col items-center gap-2 w-full max-w-xs">
           <label className="text-xs font-bold text-gray-400 self-start">ناو</label>
           <input
@@ -86,7 +86,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
             ${name.trim().length === 0 ? "bg-gray-200 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700 cursor-pointer"}
           `}
         >
-          بەشداریکردن لە کویز
+          بەشداریکردن لە پرسیار
         </motion.button>
       </div>
     );
@@ -105,7 +105,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
         {topicLabel && (
           <span className="text-xs font-black text-emerald-600 bg-emerald-50 rounded-full px-3 py-1">{topicLabel}</span>
         )}
-        <p className="text-sm text-gray-400 text-center">چاوەڕێی دەستپێکردنی کویز بکە...</p>
+        <p className="text-sm text-gray-400 text-center">چاوەڕێی دەستپێکردنی پرسیار بکە...</p>
       </div>
     );
   }
@@ -119,7 +119,7 @@ export function QuizPlayerScreen({ gameId }: { gameId: string }) {
   if (phase === "ENDED") {
     return (
       <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-5 px-6 py-8 overflow-y-auto">
-        <h1 className="text-xl font-black text-gray-800">کویز تەواو بوو 🎉</h1>
+        <h1 className="text-xl font-black text-gray-800">پرسیار تەواو بوو 🎉</h1>
         {myEntry && (
           <div className="flex flex-col items-center gap-1">
             <span className="text-3xl">{player.emoji}</span>

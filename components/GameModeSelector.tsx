@@ -21,7 +21,7 @@ export function loadHostMode(): HostMode | null {
   }
 }
 
-/** Compact segmented control — lets the host flip between بینگۆ and کویز
+/** Compact segmented control — lets the host flip between بینگۆ and پرسیار
  *  right on the lobby screen, above the start button. */
 export function GameModeToggle({
   mode,
@@ -41,7 +41,7 @@ export function GameModeToggle({
           ${mode === "quiz" ? "bg-emerald-600 text-white shadow-md scale-[1.02]" : "text-gray-400 hover:text-gray-600"}
         `}
       >
-        <span className="text-base leading-none">🧠</span> کویز
+        <span className="text-base leading-none">🧠</span> پرسیار
       </button>
       <button
         type="button"

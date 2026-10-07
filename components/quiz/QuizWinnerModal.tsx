@@ -44,7 +44,7 @@ export function QuizWinnerModal({
               <span>{winner.emoji}</span>
               <span>{winner.name}</span>
             </div>
-            <p className="text-lg font-bold text-amber-600">براوەی کویزەکە بوو! 🎉</p>
+            <p className="text-lg font-bold text-amber-600">براوەی پرسیارەکە بوو! 🎉</p>
             <p className="text-sm font-bold text-gray-400" dir="ltr">{winner.score} خاڵ</p>
 
             <button

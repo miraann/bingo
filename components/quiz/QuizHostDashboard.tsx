@@ -136,7 +136,7 @@ export function QuizHostDashboard({
         {/* min-h-full inner wrapper: centered when it fits, top stays reachable when it scrolls */}
         <div className="min-h-full flex flex-col items-center justify-center gap-5 sm:gap-6 px-4 py-6 sm:py-8 w-full max-w-5xl 2xl:max-w-6xl mx-auto">
           <div className="flex flex-col items-center gap-1">
-            <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-800">داشبۆردی کویز</h1>
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-800">داشبۆردی پرسیار</h1>
             {ConnectionBadge}
           </div>
 
@@ -232,7 +232,7 @@ export function QuizHostDashboard({
                   ${topicKey ? "bg-emerald-600 hover:bg-emerald-700 cursor-pointer" : "bg-gray-200 cursor-not-allowed"}
                 `}
               >
-                دەستپێکردنی کویز
+                دەستپێکردنی پرسیار
               </motion.button>
 
               <button onClick={handleNewGame} className="text-xs text-gray-300 hover:text-gray-500 underline cursor-pointer">
@@ -249,7 +249,7 @@ export function QuizHostDashboard({
   if (phase === "ENDED") {
     return (
       <div dir="rtl" className="min-h-dvh bg-white flex flex-col items-center justify-center gap-5 px-4 py-8">
-        <h1 className="text-2xl md:text-3xl font-black text-gray-800">کویز تەواو بوو 🎉</h1>
+        <h1 className="text-2xl md:text-3xl font-black text-gray-800">پرسیار تەواو بوو 🎉</h1>
         {leaderboard.length === 0 && (
           <>
             <p className="text-gray-400 text-sm">هیچ یاریزانێک بەشداری نەکرد</p>
@@ -462,7 +462,7 @@ export function QuizHostDashboard({
                 onClick={nextQuestion}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl px-8 py-3 shadow-lg cursor-pointer"
               >
-                {currentIndex + 1 >= totalQuestions ? "کۆتایی کویز" : "پرسیاری داهاتوو"}
+                {currentIndex + 1 >= totalQuestions ? "کۆتایی پرسیار" : "پرسیاری داهاتوو"}
               </motion.button>
               {loadingNextIndex != null && (
                 <NextQuestionLoader index={loadingNextIndex} total={totalQuestions} durationMs={NEXT_QUESTION_LOADING_MS} inline />
