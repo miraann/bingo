@@ -9,6 +9,7 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { PlayerBingoCard } from "@/components/PlayerBingoCard";
 import { WinnerBanner } from "@/components/WinnerBanner";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
+import { WaitingAvatar } from "@/components/WaitingAvatar";
 import { groupOf, patternLabel } from "@/lib/bingo";
 
 export function BingoPlayClient({ gameId }: { gameId: string }) {
@@ -82,7 +83,7 @@ export function BingoPlayClient({ gameId }: { gameId: string }) {
   if (phase === "LOBBY") {
     return (
       <div dir="rtl" className="h-dvh bg-white flex flex-col items-center justify-center gap-4 px-6">
-        <span className="text-5xl">{player.emoji}</span>
+        <WaitingAvatar emoji={player.emoji} />
         <h1 className="text-lg font-black text-gray-800">سڵاو {player.name} 👋</h1>
         <div className="flex items-center gap-1.5 text-xs text-gray-400">
           <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-gray-300"}`} />
