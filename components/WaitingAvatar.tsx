@@ -44,7 +44,7 @@ export function WaitingAvatar({ emoji }: { emoji: string }) {
   return (
     <div className="flex flex-col items-center">
       {/* One thought bubble per emoji, floating above the avatar */}
-      <div className="h-36 w-64 flex items-end justify-center gap-2">
+      <div className="h-44 w-80 flex items-end justify-center gap-2">
         <AnimatePresence mode="wait">
           <motion.div key={i} className="flex items-end justify-center gap-2" exit={{ opacity: 0, scale: 0, transition: { duration: 0.2 } }}>
             {mood.props.map((p, n) => {
@@ -57,22 +57,22 @@ export function WaitingAvatar({ emoji }: { emoji: string }) {
                   animate={{ opacity: 1, scale: 1, y: 0, transition: { delay: n * 0.2, type: "spring", stiffness: 300, damping: 14 } }}
                 >
                   <motion.div
-                    className={`bg-white border-2 border-gray-200 rounded-full shadow-md flex items-center justify-center ${main ? "w-24 h-24" : "w-12 h-12"}`}
+                    className={`bg-white border-2 border-gray-200 rounded-full shadow-md flex items-center justify-center ${main ? "w-28 h-28" : "w-16 h-16"}`}
                     animate={{ y: [0, -5, 0] }}
                     transition={{ duration: 2 + n * 0.4, repeat: Infinity, ease: "easeInOut", delay: n * 0.3 }}
                   >
-                    <span className={main ? "text-5xl" : "text-2xl"}>{p}</span>
+                    <span className={main ? "text-6xl" : "text-3xl"}>{p}</span>
                   </motion.div>
-                  <span className="mt-1 w-2.5 h-2.5 rounded-full bg-white border-2 border-gray-200 shadow-sm" />
-                  <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-white border border-gray-200" />
+                  <span className="mt-1 w-3.5 h-3.5 rounded-full bg-white border-2 border-gray-200 shadow-sm" />
+                  <span className="mt-0.5 w-2 h-2 rounded-full bg-white border border-gray-200" />
                 </motion.div>
               );
             })}
           </motion.div>
         </AnimatePresence>
       </div>
-      <div className="w-28 h-24 flex items-center justify-center">
-        <motion.span key={i} className="text-6xl inline-block" animate={mood.anim}>
+      <div className="w-32 h-28 flex items-center justify-center">
+        <motion.span key={i} className="text-7xl inline-block" animate={mood.anim}>
           {emoji}
         </motion.span>
       </div>
