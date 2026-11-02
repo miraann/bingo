@@ -39,7 +39,7 @@ export function HatRow({
   /** Hat only this viewer knows holds the ring (the hiding captain). */
   markedHat?: number | null;
   selected?: number | null;
-  /** Hat a wrong بڕین was called on. */
+  /** Hat a wrong گوڵ was called on. */
   wrongHat?: number | null;
   interactive?: boolean;
   onPick?: (hat: number) => void;

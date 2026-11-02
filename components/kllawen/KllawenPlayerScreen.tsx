@@ -77,7 +77,7 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
     <>
       {player && <ConnectionBanner connected={connected} onReconnect={reconnect} />}
       {renderContent()}
-      {state && <RoundIntro open={phase === "ROUND_INTRO"} round={state.round} hiderTeam={state.hiderTeam} />}
+      {state && <RoundIntro open={phase === "ROUND_INTRO"} round={state.round} hiderTeam={state.hiderTeam} result={state.result} scores={state.scores} />}
     </>
   );
 
@@ -203,7 +203,7 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
       `${hiderUi.label} دەیشارێتەوە...`;
   } else if (phase === "SEEKING") {
     message =
-      role === "seekingCaptain" ? "کڵاوێک هەڵبژێرە: پوچ یان بڕین؟" :
+      role === "seekingCaptain" ? "کڵاوێک هەڵبژێرە: پوچ یان گوڵ؟" :
       role === "seeker" ? "تیپەکەت دەگەڕێت — یارمەتی کاپتنەکەت بدە!" :
       role === "hider" || role === "hidingCaptain" ? `${seekerUi.label} دەگەڕێت — خۆت ڕابگرە 🤐` :
       `${seekerUi.label} دەگەڕێت...`;

@@ -15,9 +15,9 @@ export function KllawenRulesModal({
   targetScore: number;
 }) {
   const rows = [
-    { label: "بڕین — یەکەم کڵاو ئەنگوستیلەی تێدابێت", value: "0", note: "کڵاوەکان دەگوازرێنەوە", tone: "bg-gray-50 text-gray-700" },
+    { label: "گوڵ — یەکەم کڵاو ئەنگوستیلەی تێدابێت", value: "0", note: "کڵاوەکان دەگوازرێنەوە", tone: "bg-gray-50 text-gray-700" },
     { label: "دۆزینەوەی ئەنگوستیلە دوای n پوچ", value: "+n", note: "بۆ تیپی دۆزەرەوە، کڵاوەکان دەگوازرێنەوە", tone: "bg-emerald-50 text-emerald-700" },
-    { label: "پوچ کردنی کڵاوی ئەنگوستیلە یان بڕینی هەڵە", value: "+ماوە", note: "تیپی شارەوە خاڵی کڵاوە ماوەکان وەردەگرێت و دووبارە دەشارێتەوە", tone: "bg-red-50 text-red-600" },
+    { label: "پوچ کردنی کڵاوی ئەنگوستیلە یان گوڵی هەڵە", value: "+ماوە", note: "تیپی شارەوە خاڵی کڵاوە ماوەکان وەردەگرێت و دووبارە دەشارێتەوە", tone: "bg-red-50 text-red-600" },
   ];
 
   return (
@@ -57,7 +57,7 @@ export function KllawenRulesModal({
               تیپی بەرامبەر کڵاوەکان یەک یەک هەڵدەداتەوە:
               <br />
               <b className="text-gray-700">«پوچ»</b> = ئەم کڵاوە بەتاڵە ·{" "}
-              <b className="text-gray-700">«بڕین»</b> = ئەنگوستیلە لێرەیە
+              <b className="text-gray-700">«گوڵ»</b> = ئەنگوستیلە لێرەیە
             </p>
 
             <div className="w-full flex flex-col gap-2">

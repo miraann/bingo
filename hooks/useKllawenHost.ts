@@ -72,7 +72,7 @@ function loadPersisted(gameId: string): HostGame | null {
     if (!raw) return null;
     const game: HostGame = { ...INITIAL_GAME, ...(JSON.parse(raw) as Partial<HostGame>) };
     // The intro's timer didn't survive the reload, so go straight to hiding.
-    return game.phase === "ROUND_INTRO" ? { ...game, phase: "HIDING" } : game;
+    return game.phase === "ROUND_INTRO" ? { ...game, phase: "HIDING", result: null } : game;
   } catch {
     return null;
   }
@@ -200,11 +200,12 @@ export function useKllawenHost(gameId: string) {
     }
   }, []);
 
-  /** Holds every screen on the round countdown, then opens hiding. */
+  /** Holds every screen on the round countdown (which still shows the last
+   *  round's result), then opens hiding. */
   const scheduleHiding = useCallback(() => {
     introTimerRef.current = setTimeout(() => {
       introTimerRef.current = null;
-      update(g => (g.phase === "ROUND_INTRO" ? { ...g, phase: "HIDING" } : g));
+      update(g => (g.phase === "ROUND_INTRO" ? { ...g, phase: "HIDING", result: null } : g));
     }, ROUND_INTRO_MS);
   }, [update]);
 
@@ -376,7 +377,6 @@ export function useKllawenHost(gameId: string) {
       round: prev.round + 1,
       ringHat: null,
       lifted: [],
-      result: null,
     }));
     scheduleHiding();
   }, [update, clearAutoAdvance, scheduleHiding]);

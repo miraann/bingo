@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import type { SeekAction, Team } from "@/lib/kllawenChannel";
 import { TEAM_UI, hatNumber, seekStakes } from "@/components/kllawen/kllawenUi";
 
-/** The seeker's two calls on a chosen hat: پوچ (it's empty) or بڕین (the ring is here). */
+/** The seeker's two calls on a chosen hat: پوچ (it's empty) or گوڵ (the ring is here). */
 export function SeekActionBar({
   hat,
   liftedCount,
@@ -40,7 +40,7 @@ export function SeekActionBar({
           onClick={() => onAction("claim")}
           className="flex flex-col items-center gap-0.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white px-3 py-3 cursor-pointer"
         >
-          <span className="text-lg font-black">{liftedCount === 0 ? "بڕین ✂️" : "ئەوەتا 💍"}</span>
+          <span className="text-lg font-black">{liftedCount === 0 ? "گوڵ ✂️" : "ئەوەتا 💍"}</span>
           <span className="text-[10px] font-bold opacity-80">
             ئەنگوستیلە لێرەیە{claimPoints > 0 ? ` (+${claimPoints})` : ""}
           </span>

@@ -2,14 +2,75 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ROUND_INTRO_MS, type Team } from "@/lib/kllawenChannel";
+import { ROUND_INTRO_MS, TEAMS, type RoundResult, type Team } from "@/lib/kllawenChannel";
 import { TEAM_UI } from "@/components/kllawen/kllawenUi";
 
 const INTRO_SECONDS = Math.round(ROUND_INTRO_MS / 1000);
 
+const OUTCOME_TEXT: Record<RoundResult["outcome"], string> = {
+  cut: "گوڵ ✂️",
+  found: "ئەنگوستیلە دۆزرایەوە 💍",
+  autoFound: "ئەنگوستیلە دۆزرایەوە 💍",
+  miss: "ئەنگوستیلە نەدۆزرایەوە ❌",
+  wrongClaim: "ئەنگوستیلە نەدۆزرایەوە ❌",
+};
+
+/** Who scored last round, and the running totals. */
+function LastRound({ result, scores }: { result: RoundResult; scores: Record<Team, number> }) {
+  const winner = result.scoringTeam;
+  return (
+    <div className="flex flex-col items-center gap-2 sm:gap-3">
+      <span className="text-sm sm:text-lg font-bold text-gray-400">{OUTCOME_TEXT[result.outcome]}</span>
+      {winner ? (
+        <motion.div
+          initial={{ scale: 0.4, opacity: 0 }}
+          animate={{ scale: [0.4, 1.15, 1], opacity: 1 }}
+          transition={{ duration: 0.6 }}
+          className={`flex items-center gap-2 sm:gap-3 rounded-3xl px-5 py-2.5 sm:px-8 sm:py-4 ${TEAM_UI[winner].solid} shadow-lg`}
+        >
+          <span className="text-2xl sm:text-4xl">🏆</span>
+          <span className="text-xl sm:text-4xl font-black">{TEAM_UI[winner].label}</span>
+          <span className="text-2xl sm:text-5xl font-black tabular-nums">+{result.points}</span>
+        </motion.div>
+      ) : (
+        <p className="text-xl sm:text-3xl font-black text-gray-600">هیچ خاڵێک نییە — کڵاوەکان دەگوازرێنەوە</p>
+      )}
+
+      <div className="flex items-center gap-3 sm:gap-6" dir="rtl">
+        {TEAMS.map((team, i) => (
+          <div key={team} className="flex items-center gap-3 sm:gap-6">
+            {i > 0 && <span className="text-xl sm:text-3xl font-black text-gray-300">—</span>}
+            <div className="flex flex-col items-center">
+              <span className={`text-xs sm:text-base font-black ${TEAM_UI[team].text}`}>{TEAM_UI[team].dot} {TEAM_UI[team].label}</span>
+              <motion.span
+                initial={team === winner ? { scale: 1.6 } : false}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.5, type: "spring", stiffness: 260, damping: 12 }}
+                className={`text-3xl sm:text-5xl font-black tabular-nums ${team === winner ? TEAM_UI[team].text : "text-gray-700"}`}
+              >
+                {scores[team]}
+              </motion.span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Counts down from the moment this device sees the intro; the host's timer
  *  decides when hiding actually opens. */
-function Countdown({ round, hiderTeam }: { round: number; hiderTeam: Team }) {
+function Countdown({
+  round,
+  hiderTeam,
+  result,
+  scores,
+}: {
+  round: number;
+  hiderTeam: Team;
+  result: RoundResult | null;
+  scores: Record<Team, number>;
+}) {
   const [left, setLeft] = useState(INTRO_SECONDS);
   useEffect(() => {
     const id = setInterval(() => setLeft(s => Math.max(1, s - 1)), 1000);
@@ -24,19 +85,26 @@ function Countdown({ round, hiderTeam }: { round: number; hiderTeam: Team }) {
       exit={{ scale: 0.8, opacity: 0 }}
       className="flex flex-col items-center gap-4 sm:gap-6 px-6 text-center"
     >
-      <motion.span
-        className="text-6xl sm:text-8xl"
-        animate={{ y: ["0%", "-18%", "0%"], rotate: [-8, 8, -8] }}
-        transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-      >
-        🎩
-      </motion.span>
-      <p className="text-3xl sm:text-5xl font-black text-gray-800">گەڕی {round}</p>
-      <p className={`text-lg sm:text-2xl font-black ${ui.text}`}>
-        {ui.dot} {ui.label} ئەنگوستیلە دەشارێتەوە
-      </p>
+      {result ? (
+        <LastRound result={result} scores={scores} />
+      ) : (
+        <motion.span
+          className="text-6xl sm:text-8xl"
+          animate={{ y: ["0%", "-18%", "0%"], rotate: [-8, 8, -8] }}
+          transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+        >
+          🎩
+        </motion.span>
+      )}
 
-      <div className="relative w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-1">
+        <p className="text-2xl sm:text-4xl font-black text-gray-800">گەڕی {round}</p>
+        <p className={`text-base sm:text-2xl font-black ${ui.text}`}>
+          {ui.dot} {ui.label} ئەنگوستیلە دەشارێتەوە
+        </p>
+      </div>
+
+      <div className="relative w-20 h-20 sm:w-28 sm:h-28 flex items-center justify-center">
         <motion.div
           className="absolute inset-0 rounded-full border-[6px] border-amber-100 border-t-amber-600"
           animate={{ rotate: 360 }}
@@ -70,7 +138,20 @@ function Countdown({ round, hiderTeam }: { round: number; hiderTeam: Team }) {
 }
 
 /** Full-screen countdown shown on the TV and every phone between rounds. */
-export function RoundIntro({ open, round, hiderTeam }: { open: boolean; round: number; hiderTeam: Team }) {
+export function RoundIntro({
+  open,
+  round,
+  hiderTeam,
+  result,
+  scores,
+}: {
+  open: boolean;
+  round: number;
+  hiderTeam: Team;
+  /** Last round's result; null before round 1. */
+  result: RoundResult | null;
+  scores: Record<Team, number>;
+}) {
   return (
     <AnimatePresence>
       {open && (
@@ -79,9 +160,9 @@ export function RoundIntro({ open, round, hiderTeam }: { open: boolean; round: n
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm flex items-center justify-center"
+          className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm flex items-center justify-center overflow-y-auto py-6"
         >
-          <Countdown key={round} round={round} hiderTeam={hiderTeam} />
+          <Countdown key={round} round={round} hiderTeam={hiderTeam} result={result} scores={scores} />
         </motion.div>
       )}
     </AnimatePresence>

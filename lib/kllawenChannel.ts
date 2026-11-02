@@ -25,7 +25,7 @@ export type ControlMode = "phones" | "screen";
 export type TeamMode = "choose" | "random";
 
 /** "empty" = پوچ (the seeker says this hat is empty and lifts it).
- *  "claim" = بڕین (the seeker says the ring is under this hat). */
+ *  "claim" = گوڵ (the seeker says the ring is under this hat). */
 export type SeekAction = "empty" | "claim";
 
 export type RoundOutcome =

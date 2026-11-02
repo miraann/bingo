@@ -491,7 +491,7 @@ export function KllawenHostDashboard({
         </motion.button>
       )}
 
-      <RoundIntro open={phase === "ROUND_INTRO"} round={round} hiderTeam={hiderTeam} />
+      <RoundIntro open={phase === "ROUND_INTRO"} round={round} hiderTeam={hiderTeam} result={result} scores={scores} />
       <KllawenWinnerModal open={phase === "ENDED"} scores={scores} onNewGame={resetGame} />
       {RulesModal}
     </div>

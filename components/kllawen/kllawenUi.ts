@@ -45,7 +45,7 @@ export function describeResult(result: RoundResult, hiderTeam: Team): {
   switch (result.outcome) {
     case "cut":
       return {
-        title: "بڕین! ✂️",
+        title: "گوڵ! ✂️",
         detail: `${seekers} لە یەکەم کڵاودا دۆزییەوە — هیچ خاڵێک نییە، کڵاوەکان دەگوازرێنەوە`,
         good: true,
       };
