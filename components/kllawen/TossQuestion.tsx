@@ -150,7 +150,6 @@ export function TossResultPanel({
   const { question, correctAnswer, answers, winnerId } = toss;
   const winner = answers.find(a => a.playerId === winnerId) ?? null;
   const ui = TEAM_UI[hiderTeam];
-  const noAnswer = roster.filter(p => p.team && !answers.some(a => a.playerId === p.playerId));
 
   return (
     <div className="flex flex-col items-center gap-3 sm:gap-5 w-full max-w-3xl">
@@ -175,50 +174,72 @@ export function TossResultPanel({
         </span>
       </motion.div>
 
-      <div className="flex flex-col gap-1.5 w-full">
-        <span className="text-xs sm:text-sm font-bold text-gray-400 px-1">وەڵامی هەموو یاریزانان</span>
-        {answers.map((a, i) => {
-          const correct = a.answer === correctAnswer;
-          const isWinner = a.playerId === winnerId;
-          const teamUi = TEAM_UI[a.team];
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 w-full">
+        {TEAMS.map(team => {
+          const teamUi = TEAM_UI[team];
+          const teamAnswers = answers.filter(a => a.team === team);
+          const right = teamAnswers.filter(a => a.answer === correctAnswer).length;
+          const silent = roster.filter(p => p.team === team && !answers.some(a => a.playerId === p.playerId));
           return (
-            <motion.div
-              key={a.playerId}
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 + i * 0.08 }}
-              className={`
-                flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl px-3 py-2 sm:px-4 sm:py-3 border-2
-                ${isWinner ? "border-amber-400 bg-amber-50" : `border-transparent ${teamUi.soft}`}
-                ${a.playerId === myId ? "ring-2 ring-amber-300" : ""}
-              `}
+            <div
+              key={team}
+              className={`rounded-2xl border-2 ${teamUi.border} ${teamUi.soft} p-2 sm:p-3 flex flex-col gap-1.5 ${team === hiderTeam ? "ring-4 ring-amber-300" : ""}`}
             >
-              <span className="w-5 sm:w-7 text-xs sm:text-base font-black text-gray-400 tabular-nums">{i + 1}</span>
-              <span className="text-lg sm:text-2xl leading-none">{a.emoji}</span>
-              <span className="flex flex-col min-w-0 flex-1">
-                <span className="text-sm sm:text-lg font-black text-gray-800 truncate">
-                  {a.name}{isWinner ? " ⚡" : ""}
+              <div className="flex items-center justify-between gap-2 px-1">
+                <span className={`text-sm sm:text-lg font-black ${teamUi.text}`}>
+                  {teamUi.dot} {teamUi.label}{team === hiderTeam ? " 🎩" : ""}
                 </span>
-                <span className={`text-[10px] sm:text-xs font-black ${teamUi.text}`}>{teamUi.dot} {teamUi.label}</span>
-              </span>
-              <span className={`flex items-center gap-1 text-xs sm:text-base font-bold truncate max-w-[40%] ${correct ? "text-emerald-600" : "text-red-500"}`}>
-                {correct ? <Check size={16} strokeWidth={3} /> : <X size={16} strokeWidth={3} />}
-                <span className="truncate">{question.options[a.answer]}</span>
-              </span>
-              <span dir="ltr" className="text-xs sm:text-base font-black text-gray-600 tabular-nums whitespace-nowrap">
-                {(a.elapsedMs / 1000).toFixed(1)}s
-              </span>
-            </motion.div>
+                <span className="text-[11px] sm:text-sm font-black text-gray-500 tabular-nums">
+                  ✓ {right}/{teamAnswers.length + silent.length}
+                </span>
+              </div>
+              {teamAnswers.map(a => {
+                const correct = a.answer === correctAnswer;
+                const isWinner = a.playerId === winnerId;
+                const rank = answers.indexOf(a) + 1;
+                return (
+                  <motion.div
+                    key={a.playerId}
+                    initial={{ opacity: 0, x: 30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 + rank * 0.08 }}
+                    className={`
+                      flex items-center gap-2 rounded-xl px-2.5 py-2 sm:px-3 border-2 bg-white
+                      ${isWinner ? "border-amber-400 bg-amber-50" : "border-transparent"}
+                      ${a.playerId === myId ? "ring-2 ring-amber-300" : ""}
+                    `}
+                  >
+                    <span className="w-5 text-xs sm:text-sm font-black text-gray-400 tabular-nums" title="ڕیزبەندی">{rank}</span>
+                    <span className="text-lg sm:text-2xl leading-none">{a.emoji}</span>
+                    <span className="flex flex-col min-w-0 flex-1">
+                      <span className="text-sm sm:text-base font-black text-gray-800 truncate">
+                        {a.name}{isWinner ? " ⚡" : ""}
+                      </span>
+                      <span className={`flex items-center gap-1 text-[11px] sm:text-sm font-bold min-w-0 ${correct ? "text-emerald-600" : "text-red-500"}`}>
+                        {correct ? <Check size={14} strokeWidth={3} /> : <X size={14} strokeWidth={3} />}
+                        <span className="truncate">{question.options[a.answer]}</span>
+                      </span>
+                    </span>
+                    <span dir="ltr" className="text-xs sm:text-base font-black text-gray-600 tabular-nums whitespace-nowrap">
+                      {(a.elapsedMs / 1000).toFixed(1)}s
+                    </span>
+                  </motion.div>
+                );
+              })}
+              {silent.map(p => (
+                <div key={p.playerId} className="flex items-center gap-2 rounded-xl px-2.5 py-2 sm:px-3 bg-white/60 text-gray-400">
+                  <span className="w-5" />
+                  <span className="text-lg sm:text-2xl leading-none grayscale opacity-60">{p.emoji}</span>
+                  <span className="flex-1 text-sm sm:text-base font-bold truncate">{p.name}</span>
+                  <span className="text-[11px] sm:text-sm font-bold whitespace-nowrap">وەڵامی نەدایەوە ⏱️</span>
+                </div>
+              ))}
+              {teamAnswers.length + silent.length === 0 && (
+                <span className="text-[11px] text-gray-300 text-center py-2">کەس نییە</span>
+              )}
+            </div>
           );
         })}
-        {noAnswer.map(p => (
-          <div key={p.playerId} className="flex items-center gap-2 sm:gap-3 rounded-xl px-3 py-2 bg-gray-50 text-gray-400">
-            <span className="w-5 sm:w-7" />
-            <span className="text-lg sm:text-2xl leading-none grayscale opacity-60">{p.emoji}</span>
-            <span className="flex-1 text-sm sm:text-lg font-bold truncate">{p.name}</span>
-            <span className="text-xs sm:text-sm font-bold">وەڵامی نەدایەوە ⏱️</span>
-          </div>
-        ))}
       </div>
     </div>
   );
