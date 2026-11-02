@@ -135,6 +135,25 @@ export interface KllawenPublicState {
   result: RoundResult | null;
   roster: KllawenRosterEntry[];
   captains: Record<Team, string | null>;
+  /** voter playerId → the teammate they voted for as captain. */
+  captainVotes: Record<string, string>;
+}
+
+/** A player's vote for who should captain their team (lobby only). */
+export interface CaptainVotePayload {
+  playerId: string;
+  candidateId: string;
+}
+
+/** Captain votes each player has, counting only voters still on their team. */
+export function tallyCaptainVotes(roster: KllawenRosterEntry[], votes: Record<string, string>): Record<string, number> {
+  const teamOf = new Map(roster.map(p => [p.playerId, p.team]));
+  const counts: Record<string, number> = {};
+  for (const [voter, candidate] of Object.entries(votes)) {
+    const team = teamOf.get(voter);
+    if (team && teamOf.get(candidate) === team) counts[candidate] = (counts[candidate] ?? 0) + 1;
+  }
+  return counts;
 }
 
 export interface ChooseTeamPayload {
@@ -170,6 +189,7 @@ export const KLLAWEN_EVENTS = {
   stateSyncRequest: "kllawen-state-sync-request",
   state: "kllawen-state",
   chooseTeam: "KLLAWEN_CHOOSE_TEAM",
+  captainVote: "KLLAWEN_CAPTAIN_VOTE",
   hideRing: "KLLAWEN_HIDE_RING",
   hideVote: "KLLAWEN_HIDE_VOTE",
   seekHat: "KLLAWEN_SEEK_HAT",

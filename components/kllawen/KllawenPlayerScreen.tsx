@@ -13,7 +13,7 @@ import { SeekActionBar } from "@/components/kllawen/SeekActionBar";
 import { RoundIntro } from "@/components/kllawen/RoundIntro";
 import { TEAM_UI, describeResult, hatNumber } from "@/components/kllawen/kllawenUi";
 import { playCorrectSound, playIncorrectSound } from "@/lib/quizSound";
-import { TEAMS, leadingTeam, type Team } from "@/lib/kllawenChannel";
+import { TEAMS, leadingTeam, tallyCaptainVotes, type KllawenRosterEntry, type Team } from "@/lib/kllawenChannel";
 
 function TeamPicker({ myTeam, onChoose }: { myTeam: Team | null; onChoose: (team: Team) => void }) {
   return (
@@ -38,6 +38,58 @@ function TeamPicker({ myTeam, onChoose }: { myTeam: Team | null; onChoose: (team
   );
 }
 
+/** Each teammate votes for who captains the team; the most votes wins. */
+function CaptainVote({
+  team,
+  members,
+  counts,
+  captainId,
+  myVote,
+  onVote,
+}: {
+  team: Team;
+  members: KllawenRosterEntry[];
+  counts: Record<string, number>;
+  captainId: string | null;
+  myVote: string | null;
+  onVote: (playerId: string) => void;
+}) {
+  const ui = TEAM_UI[team];
+  return (
+    <div className={`flex flex-col gap-2 w-full max-w-xs rounded-2xl border-2 ${ui.border} ${ui.soft} p-3`}>
+      <span className={`text-sm font-black text-center ${ui.text}`}>🗳️ دەنگ بدە: کێ کاپتنی تیپەکەت بێت؟</span>
+      <div className="flex flex-col gap-1.5">
+        {members.map(p => {
+          const votes = counts[p.playerId] ?? 0;
+          const mine = myVote === p.playerId;
+          const isCaptain = captainId === p.playerId;
+          return (
+            <motion.button
+              key={p.playerId}
+              layout
+              whileTap={{ scale: 0.96 }}
+              onClick={() => onVote(p.playerId)}
+              className={`
+                flex items-center gap-2 rounded-xl px-3 py-2 border-2 cursor-pointer transition-colors
+                ${mine ? "bg-amber-50 border-amber-400" : "bg-white border-transparent hover:border-amber-200"}
+              `}
+            >
+              <span className="text-lg leading-none">{p.emoji}</span>
+              <span className="flex-1 text-start text-sm font-bold text-gray-700 truncate">
+                {p.name}{isCaptain ? " 👑" : ""}
+              </span>
+              {mine && <span className="text-[10px] font-black text-amber-700">دەنگی تۆ</span>}
+              <span className={`min-w-[1.75rem] rounded-full px-2 py-0.5 text-xs font-black tabular-nums ${votes > 0 ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-400"}`}>
+                {votes}
+              </span>
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
   useWakeLock();
 
@@ -48,8 +100,8 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
   const {
     player, state, connected, reconnect,
     myTeam, isCaptain, role, myHiddenHat, seekerTeam,
-    votes, myVote,
-    join, chooseTeam, hideRing, voteHide, seekHat,
+    votes, myVote, myCaptainVote,
+    join, chooseTeam, voteCaptain, hideRing, voteHide, seekHat,
   } = useKllawenPlayer(gameId);
 
   const phase = state?.phase ?? "LOBBY";
@@ -146,6 +198,16 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
           <TeamPicker myTeam={myTeam} onChoose={chooseTeam} />
         ) : myTeam ? TeamBadge : (
           <p className="text-sm font-bold text-gray-400">چاوەڕێی دابەشکردنی تیپەکان بکە...</p>
+        )}
+        {myTeam && (
+          <CaptainVote
+            team={myTeam}
+            members={state.roster.filter(p => p.team === myTeam)}
+            counts={tallyCaptainVotes(state.roster, state.captainVotes ?? {})}
+            captainId={state.captains[myTeam]}
+            myVote={myCaptainVote}
+            onVote={voteCaptain}
+          />
         )}
         {isCaptain && (
           <p className="text-xs font-bold text-amber-700 text-center max-w-xs">

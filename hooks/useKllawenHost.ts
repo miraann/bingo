@@ -12,6 +12,8 @@ import {
   kllawenChannelName,
   otherTeam,
   resolveSeek,
+  tallyCaptainVotes,
+  type CaptainVotePayload,
   type ChooseTeamPayload,
   type ControlMode,
   type HideRingPayload,
@@ -40,8 +42,10 @@ interface HostGame {
   result: RoundResult | null;
   /** playerId → team. Kept for players who drop off so a rejoin lands them back. */
   teams: Record<string, Team>;
-  /** Captain the host picked for each team; falls back to the team's first joiner. */
+  /** Captain the host picked for each team; overrides the vote until a teammate votes again. */
   captainPicks: Record<Team, string | null>;
+  /** voter playerId → teammate they want as captain. */
+  captainVotes: Record<string, string>;
 }
 
 const INITIAL_GAME: HostGame = {
@@ -57,6 +61,7 @@ const INITIAL_GAME: HostGame = {
   result: null,
   teams: {},
   captainPicks: { a: null, b: null },
+  captainVotes: {},
 };
 
 const AUTO_ADVANCE_DELAY_MS = 7000;
@@ -102,11 +107,20 @@ function buildRoster(players: KllawenPlayerPresence[], teams: Record<string, Tea
   return players.map(p => ({ ...p, team: teams[p.playerId] ?? null }));
 }
 
-function computeCaptains(roster: KllawenRosterEntry[], picks: Record<Team, string | null>): Record<Team, string | null> {
+/** Host's pick wins; otherwise the most-voted teammate (earliest joiner on a
+ *  tie); with no votes, the team's first joiner. */
+function computeCaptains(
+  roster: KllawenRosterEntry[],
+  picks: Record<Team, string | null>,
+  votes: Record<string, string>,
+): Record<Team, string | null> {
+  const counts = tallyCaptainVotes(roster, votes);
   const captainOf = (team: Team) => {
     const members = roster.filter(p => p.team === team);
     if (picks[team] && members.some(p => p.playerId === picks[team])) return picks[team];
-    return members[0]?.playerId ?? null;
+    let best = members[0] ?? null;
+    for (const p of members) if ((counts[p.playerId] ?? 0) > (counts[best!.playerId] ?? 0)) best = p;
+    return best?.playerId ?? null;
   };
   return { a: captainOf("a"), b: captainOf("b") };
 }
@@ -143,7 +157,11 @@ export function useKllawenHost(gameId: string) {
   }, [gameId]);
 
   const roster = useMemo(() => buildRoster(players, game.teams), [players, game.teams]);
-  const captains = useMemo(() => computeCaptains(roster, game.captainPicks), [roster, game.captainPicks]);
+  const captains = useMemo(
+    () => computeCaptains(roster, game.captainPicks, game.captainVotes),
+    [roster, game.captainPicks, game.captainVotes],
+  );
+  const captainVoteCounts = useMemo(() => tallyCaptainVotes(roster, game.captainVotes), [roster, game.captainVotes]);
   const captainsRef = useRef(captains);
   captainsRef.current = captains;
 
@@ -159,6 +177,7 @@ export function useKllawenHost(gameId: string) {
     result: game.result,
     roster,
     captains,
+    captainVotes: game.captainVotes,
   }), [game, roster, captains]);
   const publicStateRef = useRef(publicState);
   publicStateRef.current = publicState;
@@ -268,6 +287,19 @@ export function useKllawenHost(gameId: string) {
       update(prev => ({ ...prev, teams: { ...prev.teams, [payload.playerId]: payload.team } }));
     });
 
+    channel.on("broadcast", { event: KLLAWEN_EVENTS.captainVote }, ({ payload }: { payload: CaptainVotePayload }) => {
+      const g = gameRef.current;
+      const team = g.teams[payload.playerId];
+      // Captains are settled before the game starts, and only between teammates.
+      if (g.phase !== "LOBBY" || !team || g.teams[payload.candidateId] !== team) return;
+      // A fresh vote hands the choice back to the team, replacing any host pick.
+      update(prev => ({
+        ...prev,
+        captainVotes: { ...prev.captainVotes, [payload.playerId]: payload.candidateId },
+        captainPicks: { ...prev.captainPicks, [team]: null },
+      }));
+    });
+
     channel.on("broadcast", { event: KLLAWEN_EVENTS.hideRing }, ({ payload }: { payload: HideRingPayload }) => {
       const g = gameRef.current;
       // Hiding is always the hiding captain's call, from their phone — even in
@@ -328,7 +360,7 @@ export function useKllawenHost(gameId: string) {
     update(g => {
       const teams = { ...g.teams };
       shuffle(playersRef.current).forEach((p, i) => { teams[p.playerId] = TEAMS[i % 2]; });
-      return { ...g, teams, captainPicks: { a: null, b: null } };
+      return { ...g, teams, captainPicks: { a: null, b: null }, captainVotes: {} };
     });
   }, [update]);
 
@@ -391,7 +423,7 @@ export function useKllawenHost(gameId: string) {
   const gameOver = game.result != null && (game.scores.a >= game.targetScore || game.scores.b >= game.targetScore);
 
   return {
-    connected, roster, captains, canStart, gameOver,
+    connected, roster, captains, captainVoteCounts, canStart, gameOver,
     phase: game.phase,
     controlMode: game.controlMode, setControlMode,
     teamMode: game.teamMode, setTeamMode,

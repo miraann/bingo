@@ -10,6 +10,7 @@ import {
   KLLAWEN_EVENTS,
   kllawenChannelName,
   otherTeam,
+  type CaptainVotePayload,
   type HideVotePayload,
   type KllawenPublicState,
   type SeekAction,
@@ -127,6 +128,15 @@ export function useKllawenPlayer(gameId: string) {
     });
   }, []);
 
+  const voteCaptain = useCallback((candidateId: string) => {
+    if (!playerRef.current || stateRef.current?.phase !== "LOBBY") return;
+    channelRef.current?.send({
+      type: "broadcast",
+      event: KLLAWEN_EVENTS.captainVote,
+      payload: { playerId: playerRef.current.playerId, candidateId } satisfies CaptainVotePayload,
+    });
+  }, []);
+
   const hideRing = useCallback((hat: number) => {
     const s = stateRef.current;
     if (!playerRef.current || !s || s.phase !== "HIDING") return;
@@ -179,6 +189,7 @@ export function useKllawenPlayer(gameId: string) {
     else role = hiding ? "hider" : "seeker";
   }
   const myVote = player ? votes[player.playerId]?.hat ?? null : null;
+  const myCaptainVote = player ? state?.captainVotes?.[player.playerId] ?? null : null;
 
   const myHiddenHat = state && hidden && hidden.round === state.round && role === "hidingCaptain" ? hidden.hat : null;
   const seekerTeam = state ? otherTeam(state.hiderTeam) : null;
@@ -186,7 +197,7 @@ export function useKllawenPlayer(gameId: string) {
   return {
     player, state, connected, reconnect,
     myTeam, isCaptain, role, myHiddenHat, seekerTeam,
-    votes, myVote,
-    join, chooseTeam, hideRing, voteHide, seekHat,
+    votes, myVote, myCaptainVote,
+    join, chooseTeam, voteCaptain, hideRing, voteHide, seekHat,
   };
 }

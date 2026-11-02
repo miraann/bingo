@@ -64,7 +64,7 @@ export function KllawenHostDashboard({
   useBroadcastHostMode(gameId, "kllawen");
 
   const {
-    connected, roster, captains, canStart, gameOver,
+    connected, roster, captains, captainVoteCounts, canStart, gameOver,
     phase, controlMode, setControlMode, teamMode, setTeamMode, targetScore, setTargetScore,
     hiderTeam, scores, round, lifted, result,
     setPlayerTeam, setCaptain, shuffleTeams,
@@ -258,6 +258,11 @@ export function KllawenHostDashboard({
                               >
                                 <span className="text-base leading-none">{p.emoji}</span>
                                 <span className="text-xs font-bold text-gray-700 flex-1 truncate">{p.name}</span>
+                                {(captainVoteCounts[p.playerId] ?? 0) > 0 && (
+                                  <span className="text-[10px] font-black text-amber-700 bg-amber-50 rounded-full px-1.5 py-0.5" title="دەنگی کاپتن">
+                                    🗳️ {captainVoteCounts[p.playerId]}
+                                  </span>
+                                )}
                                 <button
                                   onClick={() => setCaptain(team, p.playerId)}
                                   title="کردن بە کاپتن"
@@ -304,6 +309,8 @@ export function KllawenHostDashboard({
                   </div>
                 )}
                 <span className="text-[10px] text-gray-400 text-center">
+                  🗳️ یاریزانانی هەر تیپێک لە مۆبایلەوە دەنگ دەدەن بۆ کاپتن — زۆرترین دەنگ دەبێتە کاپتن (👑 بۆ هەڵبژاردنی ڕاستەوخۆ)
+                  <br />
                   👑 کاپتن لە مۆبایلەکەیەوە ئەنگوستیلە دەشارێتەوە، یاریزانانی تیپەکەی دەنگ دەدەن کە لەژێر کام کڵاو بێت
                 </span>
               </div>
