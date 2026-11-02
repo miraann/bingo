@@ -15,6 +15,7 @@ import { TeamScoreboard } from "@/components/kllawen/TeamScoreboard";
 import { SeekActionBar } from "@/components/kllawen/SeekActionBar";
 import { KllawenRulesModal } from "@/components/kllawen/KllawenRulesModal";
 import { KllawenWinnerModal } from "@/components/kllawen/KllawenWinnerModal";
+import { RoundIntro } from "@/components/kllawen/RoundIntro";
 import { TEAM_UI, describeResult, seekStakes } from "@/components/kllawen/kllawenUi";
 import { playCorrectSound, playIncorrectSound, playPopSound } from "@/lib/quizSound";
 import { TARGET_SCORE_PRESETS, TEAMS, otherTeam, type Team } from "@/lib/kllawenChannel";
@@ -490,6 +491,7 @@ export function KllawenHostDashboard({
         </motion.button>
       )}
 
+      <RoundIntro open={phase === "ROUND_INTRO"} round={round} hiderTeam={hiderTeam} />
       <KllawenWinnerModal open={phase === "ENDED"} scores={scores} onNewGame={resetGame} />
       {RulesModal}
     </div>

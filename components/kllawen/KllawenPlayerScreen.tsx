@@ -10,6 +10,7 @@ import { WaitingAvatar } from "@/components/WaitingAvatar";
 import { HatRow } from "@/components/kllawen/HatRow";
 import { TeamScoreboard } from "@/components/kllawen/TeamScoreboard";
 import { SeekActionBar } from "@/components/kllawen/SeekActionBar";
+import { RoundIntro } from "@/components/kllawen/RoundIntro";
 import { TEAM_UI, describeResult, hatNumber } from "@/components/kllawen/kllawenUi";
 import { playCorrectSound, playIncorrectSound } from "@/lib/quizSound";
 import { TEAMS, leadingTeam, type Team } from "@/lib/kllawenChannel";
@@ -76,6 +77,7 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
     <>
       {player && <ConnectionBanner connected={connected} onReconnect={reconnect} />}
       {renderContent()}
+      {state && <RoundIntro open={phase === "ROUND_INTRO"} round={state.round} hiderTeam={state.hiderTeam} />}
     </>
   );
 

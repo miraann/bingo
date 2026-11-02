@@ -7,6 +7,7 @@ import {
   DEFAULT_TARGET_SCORE,
   HAT_COUNT,
   KLLAWEN_EVENTS,
+  ROUND_INTRO_MS,
   TEAMS,
   kllawenChannelName,
   otherTeam,
@@ -68,7 +69,10 @@ function loadPersisted(gameId: string): HostGame | null {
   if (typeof window === "undefined" || !gameId) return null;
   try {
     const raw = window.localStorage.getItem(storageKey(gameId));
-    return raw ? { ...INITIAL_GAME, ...(JSON.parse(raw) as Partial<HostGame>) } : null;
+    if (!raw) return null;
+    const game: HostGame = { ...INITIAL_GAME, ...(JSON.parse(raw) as Partial<HostGame>) };
+    // The intro's timer didn't survive the reload, so go straight to hiding.
+    return game.phase === "ROUND_INTRO" ? { ...game, phase: "HIDING" } : game;
   } catch {
     return null;
   }
@@ -119,6 +123,7 @@ export function useKllawenHost(gameId: string) {
   const playersRef = useRef(players);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedForRef = useRef("");
 
   const update = useCallback((fn: (g: HostGame) => HostGame) => {
@@ -189,7 +194,19 @@ export function useKllawenHost(gameId: string) {
       clearTimeout(autoAdvanceTimerRef.current);
       autoAdvanceTimerRef.current = null;
     }
+    if (introTimerRef.current) {
+      clearTimeout(introTimerRef.current);
+      introTimerRef.current = null;
+    }
   }, []);
+
+  /** Holds every screen on the round countdown, then opens hiding. */
+  const scheduleHiding = useCallback(() => {
+    introTimerRef.current = setTimeout(() => {
+      introTimerRef.current = null;
+      update(g => (g.phase === "ROUND_INTRO" ? { ...g, phase: "HIDING" } : g));
+    }, ROUND_INTRO_MS);
+  }, [update]);
 
   const nextRoundRef = useRef<() => void>(() => {});
 
@@ -325,7 +342,7 @@ export function useKllawenHost(gameId: string) {
     // Like the coin toss at the start of a real game: a random team hides first.
     update(g => ({
       ...g,
-      phase: "HIDING",
+      phase: "ROUND_INTRO",
       hiderTeam: Math.random() < 0.5 ? "a" : "b",
       scores: { a: 0, b: 0 },
       round: 1,
@@ -333,7 +350,8 @@ export function useKllawenHost(gameId: string) {
       lifted: [],
       result: null,
     }));
-  }, [update, clearAutoAdvance]);
+    scheduleHiding();
+  }, [update, clearAutoAdvance, scheduleHiding]);
 
   const hideRandom = useCallback(() => hide(randomHat()), [hide]);
 
@@ -353,14 +371,15 @@ export function useKllawenHost(gameId: string) {
     }
     update(prev => ({
       ...prev,
-      phase: "HIDING",
+      phase: "ROUND_INTRO",
       hiderTeam: prev.result?.nextHider ?? prev.hiderTeam,
       round: prev.round + 1,
       ringHat: null,
       lifted: [],
       result: null,
     }));
-  }, [update, clearAutoAdvance]);
+    scheduleHiding();
+  }, [update, clearAutoAdvance, scheduleHiding]);
   nextRoundRef.current = nextRound;
 
   /** Back to the lobby with scores cleared; teams and settings are kept. */

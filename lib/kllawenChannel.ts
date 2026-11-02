@@ -12,7 +12,10 @@ export function otherTeam(team: Team): Team {
   return team === "a" ? "b" : "a";
 }
 
-export type KllawenPhase = "LOBBY" | "HIDING" | "SEEKING" | "ROUND_RESULT" | "ENDED";
+/** ROUND_INTRO is the short countdown shown before each round's hiding starts. */
+export type KllawenPhase = "LOBBY" | "ROUND_INTRO" | "HIDING" | "SEEKING" | "ROUND_RESULT" | "ENDED";
+
+export const ROUND_INTRO_MS = 5000;
 
 /** Hiding always happens on the hiding captain's phone. This picks where seeking happens:
  *  "phones": the seeking captain's phone. "screen": tapped on the main screen. */
