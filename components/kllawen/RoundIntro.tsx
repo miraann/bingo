@@ -58,6 +58,49 @@ function LastRound({ result, scores }: { result: RoundResult; scores: Record<Tea
   );
 }
 
+/** The ticking number and filling bar; counts from mount. */
+export function IntroTimer({ barClass }: { barClass: string }) {
+  const [left, setLeft] = useState(INTRO_SECONDS);
+  useEffect(() => {
+    const id = setInterval(() => setLeft(s => Math.max(1, s - 1)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <>
+      <div className="relative w-20 h-20 sm:w-28 sm:h-28 flex items-center justify-center">
+        <motion.div
+          className="absolute inset-0 rounded-full border-[6px] border-amber-100 border-t-amber-600"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+        />
+        <AnimatePresence mode="popLayout">
+          <motion.span
+            key={left}
+            initial={{ scale: 1.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.4, opacity: 0 }}
+            transition={{ duration: 0.35 }}
+            className="text-4xl sm:text-6xl font-black text-amber-700 tabular-nums"
+          >
+            {left}
+          </motion.span>
+        </AnimatePresence>
+      </div>
+
+      <div className="w-56 sm:w-80 h-2.5 rounded-full bg-gray-100 overflow-hidden" dir="ltr">
+        <motion.div
+          className={`h-full rounded-full ${barClass}`}
+          initial={{ width: "0%" }}
+          animate={{ width: "100%" }}
+          transition={{ duration: INTRO_SECONDS, ease: "linear" }}
+        />
+      </div>
+      <p className="text-sm sm:text-base font-bold text-gray-400">ئامادە بن...</p>
+    </>
+  );
+}
+
 /** Counts down from the moment this device sees the intro; the host's timer
  *  decides when hiding actually opens. */
 function Countdown({
@@ -71,12 +114,6 @@ function Countdown({
   result: RoundResult | null;
   scores: Record<Team, number>;
 }) {
-  const [left, setLeft] = useState(INTRO_SECONDS);
-  useEffect(() => {
-    const id = setInterval(() => setLeft(s => Math.max(1, s - 1)), 1000);
-    return () => clearInterval(id);
-  }, []);
-
   const ui = TEAM_UI[hiderTeam];
   return (
     <motion.div
@@ -104,35 +141,7 @@ function Countdown({
         </p>
       </div>
 
-      <div className="relative w-20 h-20 sm:w-28 sm:h-28 flex items-center justify-center">
-        <motion.div
-          className="absolute inset-0 rounded-full border-[6px] border-amber-100 border-t-amber-600"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        />
-        <AnimatePresence mode="popLayout">
-          <motion.span
-            key={left}
-            initial={{ scale: 1.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.4, opacity: 0 }}
-            transition={{ duration: 0.35 }}
-            className="text-4xl sm:text-6xl font-black text-amber-700 tabular-nums"
-          >
-            {left}
-          </motion.span>
-        </AnimatePresence>
-      </div>
-
-      <div className="w-56 sm:w-80 h-2.5 rounded-full bg-gray-100 overflow-hidden" dir="ltr">
-        <motion.div
-          className={`h-full rounded-full ${ui.bar}`}
-          initial={{ width: "0%" }}
-          animate={{ width: "100%" }}
-          transition={{ duration: INTRO_SECONDS, ease: "linear" }}
-        />
-      </div>
-      <p className="text-sm sm:text-base font-bold text-gray-400">ئامادە بن...</p>
+      <IntroTimer barClass={ui.bar} />
     </motion.div>
   );
 }

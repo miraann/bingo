@@ -3,16 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { listQuizTopics, loadQuizQuestions, toPublicQuestion, type QuizQuestion } from "@/lib/quizLoader";
 import {
   DEFAULT_TARGET_SCORE,
   HAT_COUNT,
   KLLAWEN_EVENTS,
   ROUND_INTRO_MS,
   TEAMS,
+  TOSS_GRACE_MS,
   kllawenChannelName,
   otherTeam,
   resolveSeek,
   tallyCaptainVotes,
+  tossWinner,
   type CaptainVotePayload,
   type ChooseTeamPayload,
   type ControlMode,
@@ -21,12 +24,24 @@ import {
   type KllawenPlayerPresence,
   type KllawenPublicState,
   type KllawenRosterEntry,
+  type KllawenTossPublic,
   type RoundResult,
   type SeekAction,
   type SeekHatPayload,
   type Team,
   type TeamMode,
+  type TossAnswer,
+  type TossAnswerPayload,
 } from "@/lib/kllawenChannel";
+
+/** The opening toss question, answer key included. */
+interface HostToss {
+  question: QuizQuestion;
+  /** Host clock time the question opens (the intro countdown runs until then). */
+  startedAt: number;
+  answers: Record<string, TossAnswer>;
+  winnerId: string | null;
+}
 
 /** The host's full game state — the only place `ringHat` ever lives. */
 interface HostGame {
@@ -46,6 +61,7 @@ interface HostGame {
   captainPicks: Record<Team, string | null>;
   /** voter playerId → teammate they want as captain. */
   captainVotes: Record<string, string>;
+  toss: HostToss | null;
 }
 
 const INITIAL_GAME: HostGame = {
@@ -62,6 +78,7 @@ const INITIAL_GAME: HostGame = {
   teams: {},
   captainPicks: { a: null, b: null },
   captainVotes: {},
+  toss: null,
 };
 
 const AUTO_ADVANCE_DELAY_MS = 7000;
@@ -92,6 +109,28 @@ function savePersisted(gameId: string, game: HostGame) {
 
 function randomHat() {
   return Math.floor(Math.random() * HAT_COUNT);
+}
+
+function randomTeam(): Team {
+  return Math.random() < 0.5 ? "a" : "b";
+}
+
+/** Any question from any quiz topic. */
+function randomTossQuestion(): QuizQuestion {
+  const pool = listQuizTopics().flatMap(t => loadQuizQuestions(t.key));
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function publicToss(phase: KllawenPhase, toss: HostToss | null): KllawenTossPublic | null {
+  if (!toss || !phase.startsWith("TOSS_")) return null;
+  const revealed = phase === "TOSS_RESULT";
+  return {
+    question: toPublicQuestion(toss.question),
+    answeredIds: Object.keys(toss.answers),
+    correctAnswer: revealed ? toss.question.correctAnswer : null,
+    answers: revealed ? Object.values(toss.answers).sort((a, b) => a.elapsedMs - b.elapsedMs) : [],
+    winnerId: revealed ? toss.winnerId : null,
+  };
 }
 
 function shuffle<T>(items: T[]): T[] {
@@ -178,6 +217,7 @@ export function useKllawenHost(gameId: string) {
     roster,
     captains,
     captainVotes: game.captainVotes,
+    toss: publicToss(game.phase, game.toss),
   }), [game, roster, captains]);
   const publicStateRef = useRef(publicState);
   publicStateRef.current = publicState;
@@ -229,6 +269,38 @@ export function useKllawenHost(gameId: string) {
   }, [update]);
 
   const nextRoundRef = useRef<() => void>(() => {});
+
+  /** Closes the toss question: the fastest right answer's team hides first,
+   *  or a random team when nobody got it. */
+  const finishToss = useCallback(() => {
+    update(g => {
+      if (g.phase !== "TOSS_QUESTION" || !g.toss) return g;
+      const winner = tossWinner(Object.values(g.toss.answers), g.toss.question.correctAnswer);
+      return {
+        ...g,
+        phase: "TOSS_RESULT",
+        hiderTeam: winner?.team ?? randomTeam(),
+        toss: { ...g.toss, winnerId: winner?.playerId ?? null },
+      };
+    });
+  }, [update]);
+
+  // Toss timers run off the stored timestamps, so a reloaded host picks them back up.
+  const tossStartedAt = game.toss?.startedAt;
+  const tossLimitMs = (game.toss?.question.timeLimit ?? 0) * 1000;
+  useEffect(() => {
+    if (tossStartedAt == null) return;
+    if (game.phase === "TOSS_INTRO") {
+      const id = setTimeout(() => {
+        update(g => (g.phase === "TOSS_INTRO" ? { ...g, phase: "TOSS_QUESTION" } : g));
+      }, Math.max(0, tossStartedAt - Date.now()));
+      return () => clearTimeout(id);
+    }
+    if (game.phase === "TOSS_QUESTION") {
+      const id = setTimeout(finishToss, Math.max(0, tossStartedAt + tossLimitMs + TOSS_GRACE_MS - Date.now()));
+      return () => clearTimeout(id);
+    }
+  }, [game.phase, tossStartedAt, tossLimitMs, update, finishToss]);
 
   const hide = useCallback((hat: number) => {
     if (gameRef.current.phase !== "HIDING" || hat < 0 || hat >= HAT_COUNT) return;
@@ -309,6 +381,22 @@ export function useKllawenHost(gameId: string) {
       hide(payload.hat);
     });
 
+    channel.on("broadcast", { event: KLLAWEN_EVENTS.tossAnswer }, ({ payload }: { payload: TossAnswerPayload }) => {
+      const g = gameRef.current;
+      const team = g.teams[payload.playerId];
+      const p = playersRef.current.find(x => x.playerId === payload.playerId);
+      if (g.phase !== "TOSS_QUESTION" || !g.toss || !team || !p) return;
+      if (payload.questionId !== g.toss.question.id || g.toss.answers[payload.playerId]) return;
+      if (!Number.isInteger(payload.answer) || payload.answer < 0 || payload.answer >= g.toss.question.options.length) return;
+      const limitMs = g.toss.question.timeLimit * 1000;
+      const elapsedMs = Math.min(limitMs, Math.max(0, Number(payload.elapsedMs) || 0));
+      const answer: TossAnswer = { playerId: p.playerId, name: p.name, emoji: p.emoji, team, answer: payload.answer, elapsedMs };
+      update(prev => (prev.toss ? { ...prev, toss: { ...prev.toss, answers: { ...prev.toss.answers, [p.playerId]: answer } } } : prev));
+      // No need to wait out the clock once every player on a team has answered.
+      const answers = gameRef.current.toss?.answers ?? {};
+      if (playersRef.current.every(x => !gameRef.current.teams[x.playerId] || answers[x.playerId])) finishToss();
+    });
+
     channel.on("broadcast", { event: KLLAWEN_EVENTS.seekHat }, ({ payload }: { payload: SeekHatPayload }) => {
       const g = gameRef.current;
       if (g.controlMode !== "phones" || payload.round !== g.round) return;
@@ -330,7 +418,7 @@ export function useKllawenHost(gameId: string) {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [gameId, broadcastState, clearAutoAdvance, update, hide, seek]);
+  }, [gameId, broadcastState, clearAutoAdvance, update, hide, seek, finishToss]);
 
   /* ── Lobby settings ──────────────────────────────────────────────────── */
 
@@ -369,20 +457,31 @@ export function useKllawenHost(gameId: string) {
   /** Phones mode needs a captain on each side; on a shared screen anyone can play. */
   const canStart = game.controlMode === "screen" || (captains.a !== null && captains.b !== null);
 
+  /** Opens with a toss question on every phone; with nobody on a team to
+   *  answer it, a random team hides first instead. */
   const startGame = useCallback(() => {
-    if (gameRef.current.phase !== "LOBBY") return;
+    const current = gameRef.current;
+    if (current.phase !== "LOBBY") return;
     clearAutoAdvance();
-    // Like the coin toss at the start of a real game: a random team hides first.
-    update(g => ({
-      ...g,
-      phase: "ROUND_INTRO",
-      hiderTeam: Math.random() < 0.5 ? "a" : "b",
-      scores: { a: 0, b: 0 },
-      round: 1,
-      ringHat: null,
-      lifted: [],
-      result: null,
-    }));
+    const fresh = { scores: { a: 0, b: 0 }, ringHat: null, lifted: [], result: null };
+    if (playersRef.current.some(p => current.teams[p.playerId])) {
+      update(g => ({
+        ...g, ...fresh,
+        phase: "TOSS_INTRO",
+        round: 0,
+        toss: { question: randomTossQuestion(), startedAt: Date.now() + ROUND_INTRO_MS, answers: {}, winnerId: null },
+      }));
+      return;
+    }
+    update(g => ({ ...g, ...fresh, phase: "ROUND_INTRO", hiderTeam: randomTeam(), round: 1, toss: null }));
+    scheduleHiding();
+  }, [update, clearAutoAdvance, scheduleHiding]);
+
+  /** From the toss result into round 1, with the toss winners hiding. */
+  const startFirstRound = useCallback(() => {
+    if (gameRef.current.phase !== "TOSS_RESULT") return;
+    clearAutoAdvance();
+    update(g => ({ ...g, phase: "ROUND_INTRO", round: 1, toss: null }));
     scheduleHiding();
   }, [update, clearAutoAdvance, scheduleHiding]);
 
@@ -417,7 +516,7 @@ export function useKllawenHost(gameId: string) {
   /** Back to the lobby with scores cleared; teams and settings are kept. */
   const resetGame = useCallback(() => {
     clearAutoAdvance();
-    update(g => ({ ...g, phase: "LOBBY", scores: { a: 0, b: 0 }, round: 0, ringHat: null, lifted: [], result: null }));
+    update(g => ({ ...g, phase: "LOBBY", scores: { a: 0, b: 0 }, round: 0, ringHat: null, lifted: [], result: null, toss: null }));
   }, [update, clearAutoAdvance]);
 
   const gameOver = game.result != null && (game.scores.a >= game.targetScore || game.scores.b >= game.targetScore);
@@ -430,7 +529,8 @@ export function useKllawenHost(gameId: string) {
     targetScore: game.targetScore, setTargetScore,
     hiderTeam: game.hiderTeam, scores: game.scores, round: game.round,
     lifted: game.lifted, result: game.result,
+    toss: publicState.toss, tossStartedAt: game.toss?.startedAt ?? null,
     setPlayerTeam, setCaptain, shuffleTeams,
-    startGame, hide, hideRandom, seek, nextRound, endGame, resetGame,
+    startGame, startFirstRound, hide, hideRandom, seek, nextRound, endGame, resetGame,
   };
 }

@@ -15,6 +15,7 @@ import {
   type KllawenPublicState,
   type SeekAction,
   type Team,
+  type TossAnswerPayload,
 } from "@/lib/kllawenChannel";
 
 /** The hat this phone's captain hid the ring under, so a refresh still shows
@@ -72,6 +73,15 @@ export function useKllawenPlayer(gameId: string) {
   const myTeamRef = useRef<Team | null>(null);
   const voteRound = state?.phase === "HIDING" ? state.round : null;
   useEffect(() => { setVotes({}); }, [voteRound]);
+
+  /** When this phone first showed the toss question — answer times are
+   *  measured from here so the host's clock never has to match ours. */
+  const [tossShownAt, setTossShownAt] = useState<number | null>(null);
+  const [tossAnswer, setTossAnswer] = useState<number | null>(null);
+  const tossOpenId = state?.phase === "TOSS_QUESTION" ? state.toss?.question.id ?? null : null;
+  const tossQuestionId = state?.toss?.question.id ?? null;
+  useEffect(() => { if (tossOpenId != null) setTossShownAt(Date.now()); }, [tossOpenId]);
+  useEffect(() => { setTossAnswer(null); }, [tossQuestionId]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -164,6 +174,22 @@ export function useKllawenPlayer(gameId: string) {
     });
   }, []);
 
+  const answerToss = useCallback((answer: number) => {
+    const s = stateRef.current;
+    if (!playerRef.current || !s?.toss || s.phase !== "TOSS_QUESTION" || tossShownAt == null) return;
+    setTossAnswer(answer);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: KLLAWEN_EVENTS.tossAnswer,
+      payload: {
+        playerId: playerRef.current.playerId,
+        questionId: s.toss.question.id,
+        answer,
+        elapsedMs: Date.now() - tossShownAt,
+      } satisfies TossAnswerPayload,
+    });
+  }, [tossShownAt]);
+
   const seekHat = useCallback((hat: number, action: SeekAction) => {
     const s = stateRef.current;
     if (!playerRef.current || !s || s.phase !== "SEEKING") return;
@@ -197,7 +223,7 @@ export function useKllawenPlayer(gameId: string) {
   return {
     player, state, connected, reconnect,
     myTeam, isCaptain, role, myHiddenHat, seekerTeam,
-    votes, myVote, myCaptainVote,
-    join, chooseTeam, voteCaptain, hideRing, voteHide, seekHat,
+    votes, myVote, myCaptainVote, tossShownAt, tossAnswer,
+    join, chooseTeam, voteCaptain, hideRing, voteHide, seekHat, answerToss,
   };
 }

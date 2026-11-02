@@ -11,6 +11,7 @@ import { HatRow } from "@/components/kllawen/HatRow";
 import { TeamScoreboard } from "@/components/kllawen/TeamScoreboard";
 import { SeekActionBar } from "@/components/kllawen/SeekActionBar";
 import { RoundIntro } from "@/components/kllawen/RoundIntro";
+import { TossIntro, TossQuestionPanel, TossResultPanel } from "@/components/kllawen/TossQuestion";
 import { TEAM_UI, describeResult, hatNumber } from "@/components/kllawen/kllawenUi";
 import { playCorrectSound, playIncorrectSound } from "@/lib/quizSound";
 import { TEAMS, leadingTeam, tallyCaptainVotes, type KllawenRosterEntry, type Team } from "@/lib/kllawenChannel";
@@ -100,8 +101,8 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
   const {
     player, state, connected, reconnect,
     myTeam, isCaptain, role, myHiddenHat, seekerTeam,
-    votes, myVote, myCaptainVote,
-    join, chooseTeam, voteCaptain, hideRing, voteHide, seekHat,
+    votes, myVote, myCaptainVote, tossShownAt, tossAnswer,
+    join, chooseTeam, voteCaptain, hideRing, voteHide, seekHat, answerToss,
   } = useKllawenPlayer(gameId);
 
   const phase = state?.phase ?? "LOBBY";
@@ -125,10 +126,21 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
     else if (state.result.scoringTeam) playIncorrectSound();
   }, [state, phase, myTeam]);
 
+  // Toss result: cheer if my team won the right to hide first.
+  const tossSoundRef = useRef<number | null>(null);
+  useEffect(() => {
+    const id = state?.toss?.question.id ?? null;
+    if (phase !== "TOSS_RESULT" || !state || !myTeam || id == null || tossSoundRef.current === id) return;
+    tossSoundRef.current = id;
+    if (state.hiderTeam === myTeam) playCorrectSound();
+    else playIncorrectSound();
+  }, [state, phase, myTeam]);
+
   return (
     <>
       {player && <ConnectionBanner connected={connected} onReconnect={reconnect} />}
       {renderContent()}
+      {player && <TossIntro open={phase === "TOSS_INTRO"} />}
       {state && <RoundIntro open={phase === "ROUND_INTRO"} round={state.round} hiderTeam={state.hiderTeam} result={state.result} scores={state.scores} />}
     </>
   );
@@ -239,6 +251,52 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
           inGame={false} roster={state.roster} captains={state.captains} highlightTeam={myTeam} compact
         />
         <p className="text-sm text-gray-400">چاوەڕێی یاریی داهاتوو بکە</p>
+      </div>
+    );
+  }
+
+  /* ── Opening toss question ─────────────────────────────────────────────── */
+  if (phase === "TOSS_INTRO" || phase === "TOSS_QUESTION" || phase === "TOSS_RESULT") {
+    const toss = state.toss;
+    // Already answered before a refresh: the host has it, so don't offer the buttons again.
+    const lockedOut = tossAnswer == null && !!toss?.answeredIds.includes(player.playerId);
+    return (
+      <div dir="rtl" className="min-h-dvh bg-white flex flex-col items-center gap-4 px-3 pt-5 pb-6">
+        <div className="flex items-center justify-between w-full max-w-sm">
+          <span className="font-bold text-gray-700 flex items-center gap-1.5">
+            <span className="text-xl">{player.emoji}</span>{player.name}
+          </span>
+          {canChooseTeam ? null : TeamBadge}
+        </div>
+        {canChooseTeam && <TeamPicker myTeam={myTeam} onChoose={chooseTeam} />}
+
+        {phase === "TOSS_QUESTION" && toss && tossShownAt != null && (
+          <TossQuestionPanel
+            toss={toss}
+            roster={state.roster}
+            startedAt={tossShownAt}
+            myAnswer={tossAnswer}
+            onAnswer={myTeam && !lockedOut ? answerToss : undefined}
+          />
+        )}
+        {phase === "TOSS_QUESTION" && lockedOut && (
+          <p className="text-sm font-bold text-gray-500">وەڵامەکەت نێردرا ✓</p>
+        )}
+        {phase === "TOSS_QUESTION" && !myTeam && (
+          <p className="text-sm font-bold text-gray-400 text-center">تەنها یاریزانانی ناو تیپەکان وەڵام دەدەنەوە</p>
+        )}
+
+        {phase === "TOSS_RESULT" && toss && (
+          <>
+            {myTeam && (
+              <p className={`text-xl font-black ${state.hiderTeam === myTeam ? "text-emerald-600" : "text-gray-600"}`}>
+                {state.hiderTeam === myTeam ? "تیپەکەت یەکەمجار دەشارێتەوە! 🎉" : "تیپەکەت یەکەمجار دەگەڕێت 🔍"}
+              </p>
+            )}
+            <TossResultPanel toss={toss} roster={state.roster} hiderTeam={state.hiderTeam} myId={player.playerId} />
+            <p className="text-sm text-gray-400">چاوەڕێی دەستپێکردنی گەڕی یەکەم بکە...</p>
+          </>
+        )}
       </div>
     );
   }

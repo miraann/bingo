@@ -16,6 +16,7 @@ import { SeekActionBar } from "@/components/kllawen/SeekActionBar";
 import { KllawenRulesModal } from "@/components/kllawen/KllawenRulesModal";
 import { KllawenWinnerModal } from "@/components/kllawen/KllawenWinnerModal";
 import { RoundIntro } from "@/components/kllawen/RoundIntro";
+import { TossIntro, TossQuestionPanel, TossResultPanel } from "@/components/kllawen/TossQuestion";
 import { TEAM_UI, describeResult, seekStakes } from "@/components/kllawen/kllawenUi";
 import { playCorrectSound, playIncorrectSound, playPopSound } from "@/lib/quizSound";
 import { TARGET_SCORE_PRESETS, TEAMS, otherTeam, type Team } from "@/lib/kllawenChannel";
@@ -66,9 +67,9 @@ export function KllawenHostDashboard({
   const {
     connected, roster, captains, captainVoteCounts, canStart, gameOver,
     phase, controlMode, setControlMode, teamMode, setTeamMode, targetScore, setTargetScore,
-    hiderTeam, scores, round, lifted, result,
+    hiderTeam, scores, round, lifted, result, toss, tossStartedAt,
     setPlayerTeam, setCaptain, shuffleTeams,
-    startGame, hideRandom, seek, nextRound, endGame, resetGame,
+    startGame, startFirstRound, hideRandom, seek, nextRound, endGame, resetGame,
   } = useKllawenHost(gameId);
 
   const [joinUrl, setJoinUrl] = useState("");
@@ -115,6 +116,7 @@ export function KllawenHostDashboard({
       if (result.outcome === "miss" || result.outcome === "wrongClaim") playIncorrectSound();
       else playCorrectSound();
     }
+    if (soundOn && prevPhaseRef.current !== "TOSS_RESULT" && phase === "TOSS_RESULT") playCorrectSound();
     if (prevPhaseRef.current !== "ENDED" && phase === "ENDED") {
       const cheer = new Audio("/audio/win-cheer.wav");
       cheer.volume = 0.8;
@@ -364,6 +366,7 @@ export function KllawenHostDashboard({
   };
   const { claimPoints, missPoints } = seekStakes(lifted.length);
   const resultText = result ? describeResult(result, hiderTeam) : null;
+  const inToss = phase === "TOSS_INTRO" || phase === "TOSS_QUESTION" || phase === "TOSS_RESULT";
 
   return (
     <div dir="rtl" className="h-dvh bg-white flex flex-col items-center px-3 pt-5 md:pt-6 pb-4 gap-3 sm:gap-4 overflow-y-auto">
@@ -408,12 +411,31 @@ export function KllawenHostDashboard({
         {RulesButton}
       </div>
 
-      <TeamScoreboard
-        scores={scores} targetScore={targetScore} hiderTeam={hiderTeam}
-        inGame={phase !== "ENDED"} roster={roster} captains={captains}
-      />
+      {!inToss && (
+        <TeamScoreboard
+          scores={scores} targetScore={targetScore} hiderTeam={hiderTeam}
+          inGame={phase !== "ENDED"} roster={roster} captains={captains}
+        />
+      )}
 
-      {phase !== "ENDED" && (
+      {/* ── Opening toss question ─────────────────────────────────────────── */}
+      {phase === "TOSS_QUESTION" && toss && tossStartedAt != null && (
+        <TossQuestionPanel toss={toss} roster={roster} startedAt={tossStartedAt} />
+      )}
+      {phase === "TOSS_RESULT" && toss && (
+        <>
+          <TossResultPanel toss={toss} roster={roster} hiderTeam={hiderTeam} />
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+            onClick={startFirstRound}
+            className="bg-amber-700 hover:bg-amber-800 text-white font-black rounded-2xl px-8 py-3.5 text-lg shadow-lg cursor-pointer"
+          >
+            دەستپێکردنی گەڕی یەکەم 🎩
+          </motion.button>
+        </>
+      )}
+
+      {phase !== "ENDED" && !inToss && (
         <span className="text-xs font-black text-amber-700 bg-amber-50 rounded-full px-3 py-1">گەڕی {round}</span>
       )}
 
@@ -453,7 +475,7 @@ export function KllawenHostDashboard({
         )}
       </div>
 
-      {phase !== "ENDED" && (
+      {phase !== "ENDED" && !inToss && (
         <HatRow
           lifted={lifted}
           revealRing={phase === "ROUND_RESULT" ? result?.ringHat ?? null : null}
@@ -498,6 +520,7 @@ export function KllawenHostDashboard({
         </motion.button>
       )}
 
+      <TossIntro open={phase === "TOSS_INTRO"} />
       <RoundIntro open={phase === "ROUND_INTRO"} round={round} hiderTeam={hiderTeam} result={result} scores={scores} />
       <KllawenWinnerModal open={phase === "ENDED"} scores={scores} onNewGame={resetGame} />
       {RulesModal}
