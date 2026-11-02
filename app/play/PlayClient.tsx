@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { BingoPlayClient } from "./BingoPlayClient";
 import { QuizPlayerScreen } from "@/components/quiz/QuizPlayerScreen";
 import { useHostMode } from "@/hooks/useHostMode";
+import { KllawenPlayerScreen } from "@/components/kllawen/KllawenPlayerScreen";
+import { isHostMode } from "@/components/GameModeSelector";
 
 export function PlayClient() {
   const router = useRouter();
@@ -13,7 +15,8 @@ export function PlayClient() {
   const urlGameId = (searchParams.get("gameId") ?? "").toUpperCase();
   // Legacy `mode` param only matters if the host can't be reached; otherwise
   // the player follows whichever game the host currently has open.
-  const fallbackMode = searchParams.get("mode") === "quiz" ? "quiz" : "bingo";
+  const modeParam = searchParams.get("mode");
+  const fallbackMode = isHostMode(modeParam) ? modeParam : "bingo";
   const mode = useHostMode(urlGameId, fallbackMode);
 
   const [manualCode, setManualCode] = useState("");
@@ -59,5 +62,6 @@ export function PlayClient() {
 
   // key forces a clean remount (fresh channel/state) when the host switches games.
   if (mode === "quiz") return <QuizPlayerScreen key="quiz" gameId={urlGameId} />;
+  if (mode === "kllawen") return <KllawenPlayerScreen key="kllawen" gameId={urlGameId} />;
   return <BingoPlayClient key="bingo" gameId={urlGameId} />;
 }

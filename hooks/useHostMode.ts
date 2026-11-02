@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { HOST_MODE_EVENTS, hostModeChannelName, type HostModePayload } from "@/lib/hostModeChannel";
-import type { HostMode } from "@/components/GameModeSelector";
+import { isHostMode, type HostMode } from "@/components/GameModeSelector";
 
 /** Host side: announces the dashboard's game mode as soon as it connects
- *  (i.e. whenever the host switches between /bingo and /quiz) and answers
+ *  (i.e. whenever the host switches between /bingo, /quiz and /kllawen) and answers
  *  late joiners asking which game is running. */
 export function useBroadcastHostMode(gameId: string, mode: HostMode) {
   const modeRef = useRef(mode);
@@ -49,7 +49,7 @@ export function useHostMode(gameId: string, fallback: HostMode): HostMode | null
 
     const channel = supabase.channel(hostModeChannelName(gameId));
     channel.on("broadcast", { event: HOST_MODE_EVENTS.modeChanged }, ({ payload }: { payload: HostModePayload }) => {
-      if (payload.mode !== "bingo" && payload.mode !== "quiz") return;
+      if (!isHostMode(payload.mode)) return;
       heard = true;
       setMode(payload.mode);
       try { window.localStorage.setItem(lastModeKey(gameId), payload.mode); } catch {}
@@ -64,7 +64,7 @@ export function useHostMode(gameId: string, fallback: HostMode): HostMode | null
       if (heard) return;
       let saved: string | null = null;
       try { saved = window.localStorage.getItem(lastModeKey(gameId)); } catch {}
-      setMode(saved === "bingo" || saved === "quiz" ? saved : fallback);
+      setMode(isHostMode(saved) ? saved : fallback);
     }, HOST_MODE_TIMEOUT_MS);
 
     return () => {

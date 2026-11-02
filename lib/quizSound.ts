@@ -38,3 +38,8 @@ export function playCorrectSound() {
 export function playIncorrectSound() {
   tone(220, 320, "sawtooth", 0.2);
 }
+
+/** Short lift "pop" — used when a کڵاوێن hat is cleared as empty. */
+export function playPopSound() {
+  tone(520, 90, "triangle", 0.2);
+}
