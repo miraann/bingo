@@ -353,11 +353,11 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
 
       {(phase === "HIDING" || phase === "SEEKING") && state.mistake && (
         <p className="text-sm font-black text-red-500 text-center max-w-xs">
-          {describeMistake(state.mistake, state.hiderTeam, state.triesLeft)}
+          {describeMistake(state.mistake, state.triesLeft)}
         </p>
       )}
       {phase === "SEEKING" && state.maxTries > 1 && (
-        <span className="text-xs font-black text-amber-700">هەوڵ: {state.triesLeft} / {state.maxTries}</span>
+        <span className="text-xs font-black text-amber-700">هەوڵی گوڵ: {state.triesLeft} / {state.maxTries}</span>
       )}
 
       {resultText && (

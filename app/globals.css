@@ -17,6 +17,38 @@ html, body {
   font-family: "UniSalar", sans-serif;
 }
 
+/* Full-viewport game screen; vh first for TV browsers without dvh support. */
+.kl-screen {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* کڵاوێن in game: every rem-based size (text, buttons, scores, pop-ups) grows
+   with the screen — 16px up to about 1440×800, then up to 26px on a big TV.
+   The plain 16px line is the fallback for TV browsers without clamp()/min(). */
+html.kl-tv {
+  font-size: 16px;
+  font-size: clamp(16px, min(2vh, 1.111vw), 26px);
+}
+
+/* کڵاوێن hat animations — pure CSS transforms so they run on the compositor
+   and stay smooth on slow TV browsers even when the page is busy. */
+@keyframes kl-sweep {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(var(--kl-sweep-to, 90%)); }
+}
+.kl-sweep {
+  animation: kl-sweep 3.5s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes kl-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8%); }
+}
+.kl-bob {
+  animation: kl-bob 0.6s ease-in-out infinite;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #f1f1f1; }

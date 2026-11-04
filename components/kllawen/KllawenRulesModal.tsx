@@ -30,7 +30,7 @@ export function KllawenRulesModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-sm flex items-center justify-center px-4"
+          className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center px-4"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.8, y: 30 }}
@@ -80,8 +80,8 @@ export function KllawenRulesModal({
               <li>ئەگەر هەموو کڵاوە بەتاڵەکان پوچ بکرێن، ئەنگوستیلەکە دۆزراوەتەوە: +{HAT_COUNT - 1} بۆ تیپی دۆزەرەوە.</li>
               {maxTries > 1 && (
                 <li>
-                  تیپی دۆزەرەوە {maxTries} هەوڵی هەیە: هەڵەیەک هەوڵێک دەبات، تەنها دوایین هەڵە خاڵ دەدات بە تیپی شارەوە.
-                  ئەگەر «پوچ» لەسەر کڵاوی ئەنگوستیلە بکرێت، ئەنگوستیلەکە دووبارە دەشاردرێتەوە.
+                  تیپی دۆزەرەوە {maxTries} هەوڵی هەیە بۆ «گوڵ»: هەر گوڵێکی هەڵە هەوڵێک دەبات، تەنها دوایین هەڵە خاڵ دەدات بە تیپی شارەوە.
+                  «پوچ» لەسەر کڵاوی ئەنگوستیلە هەمیشە گەڕەکە کۆتایی پێدەهێنێت، هەرچەند هەوڵیشی مابێت.
                   هەر «گوڵ»ێکی هەڵە −1 خاڵ لە خاڵی دۆزینەوەکە کەم دەکاتەوە (کڵاوەکەشی خاڵی بۆ ناژمێردرێت).
                 </li>
               )}

@@ -8,7 +8,8 @@ export const HAT_COUNT = 10;
 export const ROUND_PRESETS = [6, 10, 16] as const;
 export const DEFAULT_TOTAL_ROUNDS = 10;
 export const MAX_ROUNDS = 50;
-/** How many wrong calls the seekers get per round before the hiders score. */
+/** How many wrong گوڵ calls (claiming an empty hat) the seekers get per round
+ *  before the hiders score. پوچ on the ring's hat always ends the round. */
 export const TRIES_PRESETS = [1, 2, 3] as const;
 export const DEFAULT_MAX_TRIES = 1;
 export const MAX_TRIES = HAT_COUNT - 1;
@@ -70,22 +71,20 @@ export function seekerPoints(liftedCount: number, wrongClaims: number) {
   return Math.max(0, liftedCount - 2 * wrongClaims);
 }
 
-/** A wrong call the seekers survived because they still had tries left. */
+/** A wrong گوڵ the seekers survived because they still had tries left. */
 export interface SeekMistake {
-  /** "miss" gave the ring's hat away, so the hiders hide it again. */
-  kind: "miss" | "wrongClaim";
+  kind: "wrongClaim";
   hat: number;
 }
 
 export type SeekResolution =
   | { kind: "continue"; lifted: number[]; mistake?: SeekMistake }
-  /** A wrong پوچ on the ring's hat with tries left: the ring is hidden again. */
-  | { kind: "rehide"; lifted: number[]; mistake: SeekMistake }
   | { kind: "result"; lifted: number[]; result: RoundResult };
 
 /** Applies one seeker move. Pure, so the host stays the only place that
  *  knows `ringHat` and every score comes from here. `triesLeft` counts this
- *  move: a wrong call with more than one left costs a try instead of the round. */
+ *  move: a wrong گوڵ with more than one left costs a try instead of the round.
+ *  پوچ on the ring's hat lifts it, so the round is over whatever tries are left. */
 export function resolveSeek(
   ringHat: number,
   lifted: number[],
@@ -114,7 +113,6 @@ export function resolveSeek(
         },
       };
     }
-    if (triesLeft > 1) return { kind: "rehide", lifted, mistake: { kind: "miss", hat } };
     return {
       kind: "result",
       lifted,
@@ -168,11 +166,11 @@ export interface KllawenPublicState {
   teamMode: TeamMode;
   totalRounds: number;
   maxTries: number;
-  /** Wrong calls the seekers can still make this round. */
+  /** Wrong گوڵ calls the seekers can still make this round. */
   triesLeft: number;
   /** Wrong گوڵ calls this round — each takes a point off finding the ring. */
   wrongClaims: number;
-  /** The last wrong call that cost a try this round; cleared by the next move. */
+  /** The last wrong گوڵ that cost a try this round; cleared by the next move. */
   mistake: SeekMistake | null;
   hiderTeam: Team;
   scores: Record<Team, number>;

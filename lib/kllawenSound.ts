@@ -13,15 +13,16 @@
    Kurdish folk songs and govend dances — and maqam Kurd for the sad moments.
 
    • playHatSelect   — stick tap + soft tembûr note
-   • playHatEmpty    — whoosh, daf, and a tembûr figure that climbs with each
-                       empty hat so tension rises as the hats run out
+   • playHatEmpty    — the ring tone (public/audio/ring.mp3) as an empty hat
+                       is lifted
    • playRingReveal  — dahol, daf roll, shimshal fanfare, bells and tilîlî
    • playKurdishVictory — a short govend burst for the end of the game
    • playCountdownTick / playCountdownGo — the intro countdown: a ring note
                        per second that climbs and gathers drums, then a hit
-   • kllawenMusic    — adaptive loop: a shimshal lawik over a drone while the
-                       ring is hidden; a halparke dance while seeking that
-                       speeds up and brings in the shimshal as hats are lifted
+   • kllawenMusic    — game-show challenge music for the whole page: a theme
+                       between rounds, a thinking cue under the toss question,
+                       a heartbeat cue while the ring is hidden, and a
+                       shimshal over a racing heartbeat while seeking
 ───────────────────────────────────────────────────────────────────────────── */
 "use client";
 
@@ -37,6 +38,7 @@ function audio() {
   if (!ctx) {
     ctx = new Ctx();
     loadShimshal(ctx);
+    loadRing(ctx);
 
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
@@ -91,6 +93,7 @@ function noise(t: number, dur: number) {
   const a = audio()!;
   const src = a.ctx.createBufferSource();
   src.buffer = a.noise;
+  src.loop = true; // bursts longer than the buffer keep going
   src.start(t, Math.random() * 1.5);
   src.stop(t + dur);
   return src;
@@ -189,29 +192,6 @@ function dafBoom(t: number, vol = 0.3, dest?: AudioNode) {
   dafJingle(t + 0.005, vol * 0.3, dest);
 }
 
-/** One heartbeat thump — a muffled, chest-deep sub hit. */
-function thump(t: number, vol: number, dest?: AudioNode) {
-  const a = audio(); if (!a) return;
-  const o = a.ctx.createOscillator();
-  o.type = "sine";
-  o.frequency.setValueAtTime(72, t);
-  o.frequency.exponentialRampToValueAtTime(40, t + 0.14);
-  const lp = a.ctx.createBiquadFilter();
-  lp.type = "lowpass"; lp.frequency.value = 160;
-  const g = a.ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
-  o.connect(lp); lp.connect(g); g.connect(out(1, 0.05, dest));
-  o.start(t); o.stop(t + 0.25);
-}
-
-/** Heartbeat "lub-dub". */
-function heartbeat(t: number, vol = 0.7, dest?: AudioNode) {
-  thump(t, vol, dest);
-  thump(t + 0.17, vol * 0.65, dest);
-}
-
 function whoosh(t: number, dur = 0.32, vol = 0.3, from = 350, to = 2600) {
   const a = audio(); if (!a) return;
   const src = noise(t, dur + 0.05);
@@ -285,8 +265,8 @@ class ShimshalProcessor extends AudioWorkletProcessor {
       { name: "noise", defaultValue: 0.26, minValue: 0, maxValue: 1, automationRate: "k-rate" },
     ];
   }
-  constructor() {
-    super();
+  constructor(options) {
+    super(options);
     this.size = 4096;
     this.bore = new Float32Array(this.size);
     this.jet = new Float32Array(this.size);
@@ -310,7 +290,9 @@ class ShimshalProcessor extends AudioWorkletProcessor {
     let freq = -1, delay = 0;
     for (let n = 0; n < out.length; n++) {
       const f = fq.length > 1 ? fq[n] : fq[0];
-      if (f !== freq) {
+      // Vibrato moves the pitch every sample; re-tuning the bore (atan2/sin/cos)
+      // every 16 samples is inaudible and keeps weak TV CPUs from glitching.
+      if (f !== freq && (freq < 0 || (n & 15) === 0)) {
         freq = f;
         // Overblown bore at 2/3 f, minus loop-filter phase delay, with calibration.
         const lf = f * 0.66666 / (1.0155 + 5.8e-6 * f);
@@ -370,7 +352,7 @@ class Shimshal {
     const a = audio();
     if (!a || !shimshalReady) return; // stays silent until the model has loaded
 
-    this.node = new AudioWorkletNode(a.ctx, "shimshal", { numberOfInputs: 0, outputChannelCount: [1] });
+    this.node = new AudioWorkletNode(a.ctx, "shimshal", { numberOfInputs: 0, outputChannelCount: [1], processorOptions: {} });
     this.freq = this.node.parameters.get("frequency")!;
     this.press = this.node.parameters.get("pressure")!;
     this.freq.value = startFreq;
@@ -581,15 +563,41 @@ export function playHatSelect() {
 }
 
 /** An empty hat is lifted. `emptiesSoFar` (1-based) raises the pitch. */
-export function playHatEmpty(emptiesSoFar: number) {
+/* ── Ring tone (public/audio/ring.mp3) ── */
+const RING_URL = "/audio/ring.mp3";
+const RING_VOLUME = 0.6; // same as Bingo
+let ringBuf: AudioBuffer | null = null;
+let ringLoading = false;
+
+/** Decodes the ring tone once, so it plays instantly and the music can dip under it. */
+function loadRing(c: AudioContext) {
+  if (ringBuf || ringLoading || typeof fetch !== "function") return;
+  ringLoading = true;
+  fetch(RING_URL)
+    .then(r => r.arrayBuffer())
+    .then(b => c.decodeAudioData(b))
+    .then(buf => { ringBuf = buf; })
+    .catch(() => { ringLoading = false; });
+}
+
+/** An empty hat is lifted: the ring tone. */
+export function playHatEmpty(_emptiesSoFar: number) {
   const a = audio(); if (!a) return;
-  const t = a.ctx.currentTime;
-  whoosh(t, 0.3, 0.26);
-  dafBoom(t + 0.03, 0.22);
-  // A tembûr "hammer-on" figure that climbs Bayati as the hats run out.
-  const step = 3 + Math.min(emptiesSoFar, 9);
-  tembur(t + 0.15, deg(step + 1), 0.13, 0.25);
-  tembur(t + 0.22, deg(step), 0.17, 0.7);
+  if (ringBuf) {
+    kllawenMusic.duckUnder(Math.min(2, ringBuf.duration));
+    const src = a.ctx.createBufferSource();
+    src.buffer = ringBuf;
+    const g = a.ctx.createGain();
+    g.gain.value = RING_VOLUME;
+    src.connect(g); g.connect(a.master);
+    src.start();
+  } else {
+    // Not decoded yet (first moments after the page opened): play it directly.
+    kllawenMusic.duckUnder(1.5);
+    const el = new Audio(RING_URL);
+    el.volume = RING_VOLUME;
+    el.play().catch(() => {});
+  }
 }
 
 export type RevealKind = "found" | "cut" | "fail";
@@ -598,6 +606,7 @@ export type RevealKind = "found" | "cut" | "fail";
 export function playRingReveal(kind: RevealKind) {
   const a = audio(); if (!a) return;
   const t = a.ctx.currentTime;
+  kllawenMusic.duckUnder(2.5, 0.25);
   whoosh(t, 0.42, 0.34, 300, 3200);
 
   if (kind === "fail") {
@@ -669,6 +678,7 @@ export function playCountdownTick(secondsLeft: number) {
 export function playCountdownGo() {
   const a = audio(); if (!a) return;
   const t = a.ctx.currentTime;
+  kllawenMusic.duckUnder(0.9);
   dum(t, 0.85);
   dafBoom(t, 0.3);
   tek(t + 0.01, 0.2);
@@ -702,7 +712,7 @@ export function playKurdishVictory() {
 
 /* ── Adaptive music ──────────────────────────────────────────────────── */
 
-export type MusicMode = "hiding" | "seeking";
+export type MusicMode = "theme" | "think" | "hiding" | "seeking";
 
 /** Melody events, one per eighth note: scale step, null = rest, "~" = hold. */
 type Ev = number | null | "~";
@@ -710,13 +720,21 @@ type Ev = number | null | "~";
 const GOVEND_A: Ev[] = [4, 3, 4, 5, 4, "~", 3, 2, 3, 2, 3, 4, 2, 1, 0, null];
 // Higher answer phrase once the tension is up.
 const GOVEND_B: Ev[] = [7, 6, 5, 6, 7, "~", 5, 4, 5, 4, 3, 4, 2, 1, 0, null];
-// Lawik — a slow, free shepherd's song while the ring is hidden. Starts high,
+// Lawik — a slow, free shepherd's song for the seeking background. Starts high,
 // lingers on the quarter-tone E½♭ (step 1) and sinks home to D, with rests to breathe.
 const LAWIK: Ev[] = [
   5, "~", "~", 4, "~", 3, 4, "~", "~", "~", 3, 2, "~", 1, "~", "~", 0, "~", "~", "~", null, null,
   2, 3, 4, "~", "~", 5, 6, "~", 5, 4, "~", "~", 3, "~", 4, 3, 2, "~", "~", null,
   1, 2, 1, "~", "~", 0, "~", "~", "~", "~", null, null, null,
 ];
+// The same song a few steps higher, once most of the hats are gone.
+const LAWIK_HIGH: Ev[] = [
+  7, "~", "~", 6, "~", 5, 6, "~", "~", "~", 5, 4, "~", 3, "~", "~", 2, "~", "~", "~", null, null,
+  4, 5, 6, "~", "~", 7, 8, "~", 7, 6, "~", "~", 5, "~", 6, 5, 4, "~", "~", null,
+  3, 4, 3, "~", "~", 2, "~", "~", "~", "~", null, null, null,
+];
+/** The shimshal keeps its own calm pace while the heart races underneath. */
+const LAWIK_EIGHTH = 60 / 66 / 2;
 
 /** Plays one melody event on the shimshal, reading ahead for note length,
  *  phrase ends and breaths, with loose timing and varied ornaments.
@@ -753,13 +771,368 @@ function playDahol(t: number, pos: number, lvl: number, dest?: AudioNode) {
   else if (lvl >= 6 && (pos === 5 || pos === 7)) tek(t, 0.07, dest);
 }
 
+/** How far ahead (s) notes are handed to the audio thread. Generous, so a busy
+ *  main thread (big TV screens, slow smart-TV browsers) can't make the music lag. */
+const LOOKAHEAD = 0.35;
+const SCHEDULE_EVERY_MS = 50;
+
+/* ── Challenge music ─────────────────────────────────────────────────────
+   One engine scores the whole page like a TV game show, in D minor:
+     theme   — between rounds (🎵): pumping bass, an arpeggio bouncing through
+               a stereo echo, lush pads, a bell hook and a beat
+     think   — under the toss question (🎵): ticking clock, pulsing bass, pads
+     hiding  — while the ring is hidden (🔊): a slow heartbeat over a low
+               bass note
+     seeking — while hats are lifted (🔊): a shimshal lawik in the background
+               over heartbeat pulses that race with every empty hat
+   The tones are stacks of slightly detuned voices spread across the stereo
+   field, warmed by filters, breathing with the beat and placed in a hall with
+   a ping-pong echo — rich rather than buzzy. */
+
+/** A few milliseconds of human timing. */
+const human = (t: number, ms = 9) => t + Math.random() * ms / 1000;
+
+const midi = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+
+function burst(t: number, type: BiquadFilterType, freq: number, q: number, vol: number, dur: number, bus: AudioNode) {
+  const a = audio()!;
+  const src = noise(t, dur + 0.02);
+  const f = a.ctx.createBiquadFilter();
+  f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const g = a.ctx.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(bus);
+}
+
+function panned(c: AudioContext, pan: number, dest: AudioNode): AudioNode {
+  if (typeof c.createStereoPanner !== "function") return dest;
+  const p = c.createStereoPanner();
+  p.pan.value = pan;
+  p.connect(dest);
+  return p;
+}
+
+let hallIR: AudioBuffer | null = null;
+/** A long, dark hall (3.4 s). */
+function hallReverb(c: AudioContext) {
+  if (!hallIR) {
+    const len = Math.floor(c.sampleRate * 3.4);
+    const pre = Math.floor(c.sampleRate * 0.02);
+    hallIR = c.createBuffer(2, len, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = hallIR.getChannelData(ch);
+      let lp = 0;
+      for (let i = pre; i < len; i++) {
+        const x = (i - pre) / (len - pre);
+        const k = 0.15 + 0.8 * x; // the tail gets darker as it decays
+        lp += (1 - k) * ((Math.random() * 2 - 1) - lp);
+        d[i] = lp * Math.exp(-4.2 * x) * (1 + 2 * k);
+      }
+    }
+  }
+  const conv = c.createConvolver();
+  conv.buffer = hallIR;
+  return conv;
+}
+
+interface Echo { input: GainNode; left: DelayNode; right: DelayNode; nodes: AudioNode[] }
+/** Ping-pong echo: repeats bounce left and right and darken as they fade. */
+function pingPong(c: AudioContext, time: number, feedback: number, wet: number, dest: AudioNode): Echo {
+  const input = c.createGain();
+  const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 280;
+  const tone = c.createBiquadFilter(); tone.type = "lowpass"; tone.frequency.value = 3200;
+  const left = c.createDelay(2), right = c.createDelay(2);
+  left.delayTime.value = time; right.delayTime.value = time;
+  const fb = c.createGain(); fb.gain.value = feedback;
+  const merger = c.createChannelMerger(2);
+  const outG = c.createGain(); outG.gain.value = wet;
+  input.connect(hp); hp.connect(tone); tone.connect(left);
+  left.connect(merger, 0, 0); left.connect(right);
+  right.connect(merger, 0, 1); right.connect(fb); fb.connect(left);
+  merger.connect(outG); outG.connect(dest);
+  return { input, left, right, nodes: [input, hp, tone, left, right, fb, merger, outG] };
+}
+
+let driveCurve: Float32Array<ArrayBuffer> | null = null;
+/** Warm saturation into a gentle lowpass. Gives deep sounds harmonics, so TV
+ *  and laptop speakers — which can't reproduce 40–60 Hz — still carry them. */
+function drive(c: AudioContext, dest: AudioNode, vol: number) {
+  if (!driveCurve) {
+    driveCurve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; driveCurve[i] = Math.tanh(2.6 * x) / Math.tanh(2.6); }
+  }
+  const shaper = c.createWaveShaper();
+  shaper.curve = driveCurve;
+  const tone = c.createBiquadFilter();
+  tone.type = "lowpass"; tone.frequency.value = 900;
+  const g = c.createGain();
+  g.gain.value = vol;
+  shaper.connect(tone); tone.connect(g); g.connect(dest);
+  return shaper;
+}
+
+/* ── Instruments ──────────────────────────────────────────────────────── */
+
+/** Lush pad: every chord tone is three detuned saws spread left–centre–right,
+ *  under a lowpass that slowly opens. A long release overlaps the next chord. */
+function pad(t: number, notes: number[], dur: number, vol: number, dest: AudioNode, bright = 1) {
+  const a = audio(); if (!a) return;
+  const c = a.ctx;
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass"; lp.Q.value = 0.5;
+  lp.frequency.setValueAtTime(650 * bright, t);
+  lp.frequency.linearRampToValueAtTime(2000 * bright, t + Math.min(1.2, dur * 0.5));
+  lp.frequency.linearRampToValueAtTime(900 * bright, t + dur + 1);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + Math.min(0.45, dur * 0.3));
+  g.gain.setValueAtTime(vol, t + dur);
+  g.gain.linearRampToValueAtTime(0, t + dur + 1);
+  lp.connect(g); g.connect(dest);
+  const per = 0.6 / Math.sqrt(notes.length * 3);
+  // One shared gain + panner per side (left, centre, right) keeps the graph light.
+  const sides = ([[-12, -0.7], [0, 0], [12, 0.7]] as const).map(([cents, pan]) => {
+    const g = c.createGain(); g.gain.value = per;
+    g.connect(panned(c, pan, lp));
+    return { cents, g };
+  });
+  for (const m of notes) {
+    for (const { cents, g: side } of sides) {
+      const o = c.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = midi(m);
+      o.detune.value = cents + (Math.random() - 0.5) * 4;
+      o.connect(side);
+      o.start(t); o.stop(t + dur + 1.05);
+    }
+  }
+}
+
+/** Bright synth pluck (saw + square, resonant filter snapping shut). */
+function pluck(t: number, m: number, vol: number, dest: AudioNode, echo: AudioNode | null, pan = 0, bright = 1) {
+  const a = audio(); if (!a) return;
+  const c = a.ctx;
+  const f = midi(m);
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass"; lp.Q.value = 5;
+  lp.frequency.setValueAtTime(Math.min(12000, f * 10 * bright), t);
+  lp.frequency.exponentialRampToValueAtTime(Math.max(200, f * 1.2), t + 0.22);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+  lp.connect(g);
+  g.connect(panned(c, pan, dest));
+  if (echo) g.connect(echo);
+  for (const [type, det, level] of [["sawtooth", -7, 0.5], ["square", 7, 0.35]] as const) {
+    const o = c.createOscillator();
+    o.type = type; o.frequency.value = f; o.detune.value = det;
+    const og = c.createGain(); og.gain.value = level;
+    o.connect(og); og.connect(lp);
+    o.start(t); o.stop(t + 0.42);
+  }
+}
+
+/** FM bell (celesta-like): bright strike that mellows as it rings. */
+function fmBell(t: number, m: number, vol: number, dest: AudioNode, echo: AudioNode | null) {
+  const a = audio(); if (!a) return;
+  const c = a.ctx;
+  const f = midi(m);
+  const car = c.createOscillator(); car.frequency.value = f;
+  const mod = c.createOscillator(); mod.frequency.value = f * 3.5;
+  const idx = c.createGain();
+  idx.gain.setValueAtTime(f * 2.2, t);
+  idx.gain.exponentialRampToValueAtTime(f * 0.15, t + 1.2);
+  mod.connect(idx); idx.connect(car.frequency);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.003);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+  car.connect(g);
+  // A warm body under the strike.
+  const body = c.createOscillator(); body.type = "triangle"; body.frequency.value = f;
+  const bg = c.createGain();
+  bg.gain.setValueAtTime(0.0001, t);
+  bg.gain.exponentialRampToValueAtTime(vol * 0.35, t + 0.01);
+  bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+  body.connect(bg); bg.connect(g);
+  g.connect(dest);
+  if (echo) g.connect(echo);
+  for (const o of [car, mod, body]) { o.start(t); o.stop(t + 2.3); }
+}
+
+/** Warm bass: sine body + filtered saw, gently saturated. */
+function bassNote(t: number, m: number, dur: number, vol: number, dest: AudioNode) {
+  const a = audio(); if (!a) return;
+  const c = a.ctx;
+  const f = midi(m);
+  const input = drive(c, dest, vol);
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass"; lp.Q.value = 2.5;
+  lp.frequency.setValueAtTime(f * 14, t);
+  lp.frequency.exponentialRampToValueAtTime(f * 3, t + Math.min(0.25, dur));
+  const env = c.createGain();
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.exponentialRampToValueAtTime(0.7, t + 0.005);
+  env.gain.setValueAtTime(0.7, t + Math.max(0.01, dur * 0.8));
+  env.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.06);
+  lp.connect(env); env.connect(input);
+  const sine = c.createOscillator(); sine.frequency.value = f;
+  const sg = c.createGain(); sg.gain.value = 0.8;
+  sine.connect(sg); sg.connect(env);
+  const saw = c.createOscillator(); saw.type = "sawtooth"; saw.frequency.value = f;
+  const wg = c.createGain(); wg.gain.value = 0.45;
+  saw.connect(wg); wg.connect(lp);
+  for (const o of [sine, saw]) { o.start(t); o.stop(t + dur + 0.1); }
+}
+
+function kick(t: number, vol: number, dest: AudioNode) {
+  const a = audio(); if (!a) return;
+  const c = a.ctx;
+  const input = drive(c, dest, vol);
+  const o = c.createOscillator();
+  o.type = "sine";
+  o.frequency.setValueAtTime(160, t);
+  o.frequency.exponentialRampToValueAtTime(48, t + 0.11);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(1, t + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+  o.connect(g); g.connect(input);
+  o.start(t); o.stop(t + 0.45);
+  burst(t, "highpass", 2500, 0.7, 0.35, 0.01, input);
+}
+
+function clap(t: number, vol: number, dest: AudioNode, hall: AudioNode) {
+  const a = audio(); if (!a) return;
+  const c = a.ctx;
+  const g = c.createGain();
+  g.connect(dest);
+  const send = c.createGain(); send.gain.value = 0.6;
+  g.connect(send); send.connect(hall);
+  for (const d of [0, 0.011, 0.022]) burst(t + d, "bandpass", 1250, 1.1, vol, 0.018, g);
+  burst(t + 0.03, "bandpass", 1400, 0.9, vol * 0.7, 0.16, g);
+}
+
+function hat(t: number, vol: number, open: boolean, dest: AudioNode) {
+  const a = audio(); if (!a) return;
+  burst(t, "highpass", 7500, 0.8, vol, open ? 0.2 : 0.04, panned(a.ctx, 0.25, dest));
+}
+
+/** One heart sound: a sub drop plus the fleshy thud of the chest. */
+function heartSound(t: number, vol: number, pitch: number, dest: AudioNode) {
+  const a = audio(); if (!a) return;
+  const input = drive(a.ctx, dest, vol);
+  const o = a.ctx.createOscillator();
+  o.type = "sine";
+  o.frequency.setValueAtTime(56 * pitch, t);
+  o.frequency.exponentialRampToValueAtTime(34 * pitch, t + 0.12);
+  const og = a.ctx.createGain();
+  og.gain.setValueAtTime(0.0001, t);
+  og.gain.exponentialRampToValueAtTime(0.9, t + 0.007);
+  og.gain.exponentialRampToValueAtTime(0.0001, t + 0.26 / pitch);
+  o.connect(og); og.connect(input);
+  o.start(t); o.stop(t + 0.3);
+
+  const src = noise(t, 0.14);
+  const lp = a.ctx.createBiquadFilter();
+  lp.type = "lowpass"; lp.frequency.value = 160 * pitch; lp.Q.value = 1.1;
+  const ng = a.ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t);
+  ng.gain.exponentialRampToValueAtTime(1.6, t + 0.005);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+  src.connect(lp); lp.connect(ng); ng.connect(input);
+}
+
+/** Lub-dub. The gap between the two sounds shortens as the heart speeds up. */
+function heartPulse(t: number, vol: number, bpm: number, dest: AudioNode) {
+  const gap = Math.max(0.2, 0.34 - (bpm - 60) * 0.0014);
+  heartSound(t, vol, 1, dest);
+  heartSound(t + gap, vol * 0.7, 1.2, dest);
+}
+
+/** A mechanical clock: escapement click, wooden case knock, a tiny metal ring. */
+function clockTick(t: number, vol: number, tock: boolean, dest: AudioNode) {
+  const a = audio(); if (!a) return;
+  const bus = panned(a.ctx, tock ? 0.2 : -0.2, dest);
+  burst(t, "highpass", 4200, 0.7, vol * 0.7, 0.006, bus);
+  burst(t, "bandpass", tock ? 1150 : 1550, 3, vol * 2.2, 0.03, bus);
+  (tock ? [1870, 3120] : [2350, 3890]).forEach((f, i) => {
+    const o = a.ctx.createOscillator();
+    o.type = "sine"; o.frequency.value = f * (0.99 + Math.random() * 0.02);
+    const d = 0.045 - i * 0.01;
+    const g = a.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol * 0.22, t + 0.001);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(bus);
+    o.start(t); o.stop(t + d + 0.01);
+  });
+}
+
+/** A filtered-noise swell that builds into the next downbeat. */
+function riser(t: number, dur: number, vol: number, dest: AudioNode, hall: AudioNode) {
+  const a = audio(); if (!a) return;
+  const src = noise(t, dur + 0.06);
+  const bp = a.ctx.createBiquadFilter();
+  bp.type = "bandpass"; bp.Q.value = 1.6;
+  bp.frequency.setValueAtTime(250, t);
+  bp.frequency.exponentialRampToValueAtTime(5200, t + dur);
+  const g = a.ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + dur);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
+  src.connect(bp); bp.connect(g); g.connect(dest);
+  const send = a.ctx.createGain(); send.gain.value = 0.5;
+  g.connect(send); send.connect(hall);
+}
+
+/* ── Harmony (D minor) ────────────────────────────────────────────────── */
+
+interface Chord { pad: number[]; arp: number[]; bass: number }
+const CHORDS = {
+  Dm: { pad: [50, 57, 62, 65, 69, 76], arp: [62, 65, 69, 74], bass: 38 }, // Dm(add9)
+  Bb: { pad: [46, 53, 62, 65, 69], arp: [62, 65, 70, 74], bass: 34 },     // B♭maj7
+  F:  { pad: [53, 60, 65, 67, 69], arp: [60, 65, 69, 72], bass: 41 },     // F(add9)
+  C:  { pad: [48, 55, 64, 67, 69], arp: [60, 64, 67, 72], bass: 36 },     // C6/9
+  Gm: { pad: [50, 55, 58, 65, 69], arp: [62, 67, 70, 74], bass: 43 },     // Gm9
+  A:  { pad: [52, 57, 61, 64, 67], arp: [61, 64, 67, 73], bass: 33 },     // A7
+} satisfies Record<string, Chord>;
+type ChordName = keyof typeof CHORDS;
+
+const THEME_CHORDS: ChordName[] = ["Dm", "Bb", "F", "C", "Dm", "Bb", "Gm", "A"];
+/** The bell hook, one event per eighth note over the 8 theme bars (null = rest). */
+const THEME_HOOK: (number | null)[] = [
+  69, null, 74, null, 77, null, 76, 74,
+  77, null, null, null, 74, null, 70, null,
+  72, null, 77, null, 81, null, 79, 77,
+  79, null, null, null, 76, null, 72, null,
+  69, null, 74, null, 77, null, 76, 74,
+  77, null, 81, null, 79, null, 77, null,
+  74, null, null, 77, null, null, 74, 70,
+  73, null, null, null, 76, null, 73, null,
+];
+/** i – i – VI – V: the question hangs on the dominant. */
+const TENSION_CHORDS: ChordName[] = ["Dm", "Dm", "Bb", "A"];
+const HIDE_CHORDS: ChordName[] = ["Dm", "Bb", "Gm", "A"];
+const ARP_CELL = [0, 2, 1, 3];
+
+const MUSIC_BPM = { theme: 112, think: 100, hiding: 72 };
+/** Heart rate of the seeking cue: already quick at the first hat, racing at the last. */
+const seekBpm = (lvl: number) => 84 + lvl * 10;
+
 class Music {
   private mode: MusicMode | null = null;
   private intensity = 0;
   private bus: GainNode | null = null;
-  private drone: OscillatorNode[] = [];
-  private dance: Shimshal | null = null;
+  private padBus: GainNode | null = null;
+  private hall: GainNode | null = null;
+  private echo: Echo | null = null;
   private flute: Shimshal | null = null;
+  private fluteNext = 0;
+  private fluteStep = 0;
+  private ducker: GainNode | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private nextTime = 0;
   private step = 0;
@@ -770,116 +1143,207 @@ class Music {
     this.stop(0.4);
     this.mode = mode;
     this.step = 0;
-    const t = a.ctx.currentTime;
+    const c = a.ctx, t = c.currentTime;
 
-    this.bus = a.ctx.createGain();
+    this.bus = c.createGain();
     this.bus.gain.setValueAtTime(0.0001, t);
-    this.bus.gain.exponentialRampToValueAtTime(1, t + 1);
-    this.bus.connect(a.master);
+    // The cues under the game (hiding, seeking) sit a little lower than the theme.
+    this.bus.gain.exponentialRampToValueAtTime(mode === "theme" || mode === "think" ? 0.85 : mode === "hiding" ? 0.7 : 0.62, t + 1);
+    this.ducker = c.createGain();
+    this.bus.connect(this.ducker);
+    this.ducker.connect(a.master);
 
-    // Dozale-style drone: low D and A, breathing slowly.
-    const lp = a.ctx.createBiquadFilter();
-    lp.type = "lowpass"; lp.frequency.value = mode === "hiding" ? 420 : 650; lp.Q.value = 3;
-    const lfo = a.ctx.createOscillator();
-    lfo.frequency.value = 0.13;
-    const lfoAmt = a.ctx.createGain(); lfoAmt.gain.value = 180;
-    lfo.connect(lfoAmt); lfoAmt.connect(lp.frequency);
-    const dg = a.ctx.createGain(); dg.gain.value = mode === "hiding" ? 0.06 : 0.04;
-    lp.connect(dg); dg.connect(this.bus);
-    const send = a.ctx.createGain(); send.gain.value = 0.5;
-    dg.connect(send); send.connect(a.reverb);
-    this.drone = [lfo];
-    for (const [f, d] of [[D3 / 2, -5], [D3 / 2, 5], [D3 * 0.75, 0]] as const) {
-      const o = a.ctx.createOscillator();
-      o.type = "sawtooth"; o.frequency.value = f; o.detune.value = d;
-      o.connect(lp); o.start(t);
-      this.drone.push(o);
-    }
-    lfo.start(t);
+    const hall = c.createGain();
+    const hallOut = c.createGain(); hallOut.gain.value = 0.5;
+    const conv = hallReverb(c);
+    hall.connect(conv); conv.connect(hallOut); hallOut.connect(this.bus);
+    this.hall = hall;
 
-    if (mode === "hiding") this.flute = new Shimshal(t, deg(5, D5), this.bus);
+    // Pads go through their own bus so they can breathe with the kick / heartbeat.
+    this.padBus = c.createGain();
+    this.padBus.connect(this.bus);
+    const padSend = c.createGain(); padSend.gain.value = 0.55;
+    this.padBus.connect(padSend); padSend.connect(hall);
 
-    this.nextTime = t + 0.15;
-    this.timer = setInterval(() => this.schedule(), 25);
+    // Dotted-eighth echo for the arpeggios and bells.
+    this.echo = pingPong(c, this.beat() * 0.75, 0.38, 0.32, this.bus);
+
+    this.nextTime = t + 0.12;
+    this.fluteNext = t + 0.3;
+    this.fluteStep = 0;
+    this.timer = setInterval(() => this.schedule(), SCHEDULE_EVERY_MS);
+    this.schedule();
   }
 
-  /** 0..9 — empty hats so far. Speeds up the dance and adds instruments. */
-  setIntensity(n: number) { this.intensity = Math.max(0, Math.min(9, n)); }
+  /** Dips the music for a moment so a sound effect is heard clearly over it. */
+  duckUnder(seconds = 0.7, depth = 0.4) {
+    const g = this.ducker?.gain; if (!g || !ctx) return;
+    const t = ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(depth, t + 0.03);
+    g.setValueAtTime(depth, t + seconds * 0.5);
+    g.linearRampToValueAtTime(1, t + seconds);
+  }
 
-  private sixteenth() {
-    const bpm = this.mode === "hiding" ? 66 : 100 + this.intensity * 6;
-    return 60 / bpm / 4;
+  /** 0..9 — empty hats so far. Raises the heart rate and the tension. */
+  setIntensity(n: number) {
+    this.intensity = Math.max(0, Math.min(9, n));
+    if (this.mode === "seeking" && this.echo && ctx) {
+      const d = this.beat() * 0.75;
+      this.echo.left.delayTime.setTargetAtTime(d, ctx.currentTime, 0.4);
+      this.echo.right.delayTime.setTargetAtTime(d, ctx.currentTime, 0.4);
+    }
+  }
+
+  private bpm() {
+    if (this.mode === "seeking") return seekBpm(this.intensity);
+    return MUSIC_BPM[this.mode ?? "theme"];
+  }
+  private beat() { return 60 / this.bpm(); }
+  private sixteenth() { return this.beat() / 4; }
+
+  /** The pads dip on each kick / heartbeat, so the music breathes with the pulse.
+   *  Anchored linear ramps: each dip is self-contained (chained setTargetAtTime
+   *  calls blew up in testing). */
+  private pump(t: number, depth = 0.5) {
+    const g = this.padBus?.gain; if (!g) return;
+    g.setValueAtTime(1, t);
+    g.linearRampToValueAtTime(depth, t + 0.012);
+    g.linearRampToValueAtTime(1, t + 0.22);
   }
 
   private schedule() {
     const a = audio(); if (!a || !this.mode || !this.bus) return;
-    while (this.nextTime < a.ctx.currentTime + 0.12) {
+    const now = a.ctx.currentTime;
+    // The page stalled past the lookahead (slow TV browser): skip the missed
+    // steps instead of firing them all late in one burst, so the beat stays on time.
+    while (this.nextTime < now) {
+      this.nextTime += this.sixteenth();
+      this.step++;
+    }
+    while (this.nextTime < now + LOOKAHEAD) {
       this.playStep(this.nextTime, this.step);
       this.nextTime += this.sixteenth();
       this.step++;
     }
+    if (this.mode === "seeking") this.scheduleShimshal(now);
+  }
+
+  /** Seeking background: a shimshal lawik on its own slow clock. */
+  private scheduleShimshal(now: number) {
+    while (this.fluteNext < now) {
+      this.fluteNext += LAWIK_EIGHTH;
+      this.fluteStep++;
+    }
+    while (this.fluteNext < now + LOOKAHEAD) {
+      // Made as soon as the shimshal model has loaded.
+      if (!this.flute?.live && shimshalReady && this.bus) this.flute = new Shimshal(this.fluteNext, deg(5, D5), this.bus);
+      if (this.flute) {
+        const lvl = this.intensity;
+        playFlute(this.flute, this.fluteNext, lvl >= 6 ? LAWIK_HIGH : LAWIK, this.fluteStep, LAWIK_EIGHTH, 0.07 + lvl * 0.003, true, 0.045, true);
+      }
+      this.fluteNext += LAWIK_EIGHTH;
+      this.fluteStep++;
+    }
   }
 
   private playStep(t: number, s: number) {
+    if (this.mode === "theme") this.theme(t, s);
+    else if (this.mode === "think") this.think(t, s);
+    else if (this.mode === "hiding") this.hiding(t, s);
+    else if (this.mode === "seeking") this.seeking(t, s);
+  }
+
+  /** Between rounds: the show's theme. Two bars build up, then the beat drops. */
+  private theme(t: number, s: number) {
+    const bus = this.bus!, hall = this.hall!, echo = this.echo!.input;
+    const pos = s % 16, bar = Math.floor(s / 16);
+    const ch = CHORDS[THEME_CHORDS[bar % 8]];
+    const barLen = this.sixteenth() * 16;
+    const intro = bar < 2;
+
+    if (pos === 0) pad(t, ch.pad, barLen, 0.2, this.padBus!, 1);
+    if (bar === 1 && pos === 0) riser(t, barLen, 0.07, bus, hall);
+
+    // Arpeggio on every sixteenth, bouncing left–right into the echo.
+    const up = pos >= 12 && bar % 2 === 1 ? 12 : 0;
+    pluck(t, ch.arp[ARP_CELL[pos % 4]] + up, pos % 4 === 0 ? 0.09 : 0.065, bus, echo, pos % 2 ? 0.3 : -0.3);
+    if (intro) return;
+
+    // Driving eighth-note bass with an octave pop at the end of the bar.
+    if (pos % 2 === 0) bassNote(t, ch.bass + (pos === 14 ? 12 : 0), this.sixteenth() * 1.7, pos % 4 === 0 ? 0.17 : 0.13, bus);
+
+    // Beat: kick 1 & 3 (plus a push in every other bar), clap 2 & 4, offbeat hats.
+    if (pos === 0 || pos === 8 || (pos === 10 && bar % 2 === 1)) { kick(t, 0.5, bus); this.pump(t); }
+    if (pos === 4 || pos === 12) clap(human(t, 4), 0.7, bus, hall);
+    if (pos % 4 === 2) hat(t, 0.06, pos === 14 && bar % 4 === 3, bus);
+    else if (bar >= 10 && pos % 2 === 1) hat(t, 0.022, false, bus);
+
+    // Bell hook on eighths.
+    if (pos % 2 === 0) {
+      const m = THEME_HOOK[(bar % 8) * 8 + pos / 2];
+      if (m != null) fmBell(t, m, 0.075, bus, echo);
+    }
+  }
+
+  /** Under the toss question: a quiz-show "thinking" cue. */
+  private think(t: number, s: number) {
+    const bus = this.bus!, echo = this.echo!.input;
+    const pos = s % 16, bar = Math.floor(s / 16);
+    const ch = CHORDS[TENSION_CHORDS[bar % 4]];
+    if (pos === 0) {
+      pad(t, ch.pad, this.sixteenth() * 16, 0.16, this.padBus!, 0.8);
+      kick(t, 0.3, bus);
+      this.pump(t, 0.6);
+    }
+    if (pos % 2 === 0) {
+      clockTick(t, pos % 4 === 0 ? 0.16 : 0.12, pos % 4 === 2, bus);
+      bassNote(t, ch.bass, this.sixteenth() * 0.9, 0.14, bus);
+    }
+    if (pos % 4 === 2) pluck(t, ch.arp[ARP_CELL[(pos >> 2) % 4]] + 12, 0.045, bus, echo, pos % 8 === 2 ? -0.4 : 0.4);
+    hat(t, pos % 2 ? 0.016 : 0.028, false, bus);
+  }
+
+  /** While the ring is hidden: a slow heartbeat over one low bass note per bar. */
+  private hiding(t: number, s: number) {
     const bus = this.bus!;
-    const pos = s % 8;
+    const pos = s % 16, bar = Math.floor(s / 16);
+    if (pos === 0) bassNote(t, CHORDS[HIDE_CHORDS[bar % 4]].bass, this.sixteenth() * 16 * 0.95, 0.1, bus);
+    if (pos % 4 === 0) heartPulse(human(t, 10), 0.42, MUSIC_BPM.hiding, bus);
+  }
 
-    if (this.mode === "hiding") {
-      // Sneaky: a slow heartbeat under a shimshal lawik.
-      if (s % 8 === 0) heartbeat(t, 0.55, bus);
-      if (s % 16 === 0) dafJingle(t + 0.01, 0.025, bus);
-      if (!this.flute?.live && shimshalReady) this.flute = new Shimshal(t, deg(5, D5), bus);
-      if (s % 2 === 0 && this.flute) playFlute(this.flute, t, LAWIK, s / 2, this.sixteenth() * 2, 0.075, true, 0.045, true);
-      return;
-    }
-
+  /** While hats are lifted: a heartbeat that races with each empty hat, under
+   *  the shimshal (see scheduleShimshal). */
+  private seeking(t: number, s: number) {
     const lvl = this.intensity;
-    // The heartbeat drives the dance: one lub-dub per bar, so it races as the
-    // tempo climbs, and beats twice per bar once only a few hats are left.
-    if (pos === 0 || (lvl >= 7 && pos === 4)) heartbeat(t, 0.6 + lvl * 0.03, bus);
-    playDahol(t, pos, lvl, bus);
-    if (pos % 2 === 0) dafJingle(t, 0.04 + lvl * 0.004, bus);
-    else if (lvl >= 4) dafJingle(t, 0.02, bus);
-
-    if (s % 2 !== 0) return;
-    const i = s / 2;
-    const phrase = lvl >= 6 ? GOVEND_B : GOVEND_A;
-    const ev = phrase[i % phrase.length];
-    // Tembûr always carries the tune.
-    if (typeof ev === "number") tembur(t, deg(ev), 0.08, 0.35, bus, 0.3);
-
-    // The shimshal joins once three hats are gone and gets showier near the end.
-    if (lvl >= 3) {
-      if (!this.dance?.live) this.dance = new Shimshal(t, deg(4, D5), bus);
-      playFlute(this.dance, t, phrase, i, this.sixteenth() * 2, 0.065 + (lvl - 3) * 0.006, lvl >= 5, 0.02);
-      const next = phrase[(i + 1) % phrase.length];
-      if (lvl >= 8 && typeof ev === "number" && next === "~") {
-        this.dance.trill(t + 0.08, deg(ev, D5), deg(ev + 1, D5), this.sixteenth() * 2.5);
-      }
-    }
+    if (s % 4 === 0) heartPulse(human(t, 10), 0.42 + lvl * 0.025, seekBpm(lvl), this.bus!);
   }
 
   stop(fade = 0.25) {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.mode = null;
-    this.intensity = 0;
     const a = ctx;
     const bus = this.bus;
-    const voices = [...this.drone];
-    const winds = [this.dance, this.flute].filter(Boolean) as Shimshal[];
-    this.bus = null;
-    this.drone = [];
-    this.dance = null;
+    const echo = this.echo;
+    const flute = this.flute;
     this.flute = null;
+    this.bus = null;
+    this.padBus = null;
+    this.hall = null;
+    this.echo = null;
+    this.ducker = null;
     if (!a || !bus) return;
     const t = a.currentTime;
     bus.gain.cancelScheduledValues(t);
     bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), t);
     bus.gain.exponentialRampToValueAtTime(0.0001, t + fade);
-    voices.forEach(o => { try { o.stop(t + fade + 0.05); } catch { /* already stopped */ } });
-    winds.forEach(w => w.stop(t + fade));
-    setTimeout(() => bus.disconnect(), (fade + 0.6) * 1000);
+    flute?.stop(t + fade);
+    setTimeout(() => {
+      bus.disconnect();
+      echo?.nodes.forEach(n => n.disconnect()); // break the echo's feedback loop
+    }, (fade + 0.6) * 1000);
   }
 }
 

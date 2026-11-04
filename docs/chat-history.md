@@ -113,7 +113,43 @@ Passwords, database connection strings and API keys have been removed.
   reveals it, so the hiders hide it again under a remaining hat. Each wrong گوڵ
   costs −1 point if the finders find the ring.
 
-### Saving to GitHub
+### Saving to GitHub (earlier)
 - **Request:** Save all files and chats to GitHub.
 - **Done:** Committed all changes and this chat history to `main` and pushed.
   `.claude/settings.local.json` (local Claude Code permissions) was left out.
+
+### Fit the game on an 80-inch TV
+- **Request:** The Kllawen game was slow on an 80-inch TV, the music lagged, and the
+  hats needed scrolling. Make everything fit on screen; later, make the hats smaller.
+- **Done:** The game screen now fits with no scrolling. The hats measure the free
+  space and size themselves to it (capped at about 65% of the width on wide
+  screens), and the page's base text size grows with the screen while a game runs,
+  so text, scores, buttons and pop-ups scale together. Toolbar buttons are bigger.
+  Some causes of slowness and music delay were removed. Checked in a headless
+  browser at TV, laptop and phone sizes, not yet on the real TV.
+
+### Ring under a پوچ hat started a new round
+- **Request:** Pressing پوچ on the hat with the ring went straight back to hiding
+  with hats still open and no round result.
+- **Done:** With more than one try, a wrong پوچ used to make the hiders hide the
+  ring again in the same round. Now a پوچ on the ring's hat always ends the round:
+  the result, then the countdown with winner and points, then a new round with all
+  hats down. Tries only cover a wrong گوڵ/ئەوەتا, and the setting is labelled
+  «هەوڵی گوڵ».
+
+### New Kllawen music
+- **Request:** Several rounds of changes: make the seeking music less cheap, remove
+  the tembûr, then replace all Kllawen music with richer game-show style music,
+  then strip it back.
+- **Done:** All Kllawen music is now one D-minor game-show score: a theme for the
+  lobby and intros, thinking music (with a clock) for the opening question,
+  heartbeat and bass for hiding, and for seeking a shimshal lawik in maqam Bayati
+  over a heartbeat that starts at 84 BPM and rises by 10 per empty hat to 174.
+  Pads, arpeggios, drone, wind, rising tone, pulsing bass, clock and booms were
+  removed from hiding and seeking at the user's request. Opening an empty hat now
+  plays the ring tone (`public/audio/ring.mp3`). Checked with offline renders for
+  clipping and errors.
+
+### Saving to GitHub
+- **Request:** Save all files and chats to GitHub.
+- **Done:** Committed all changes and this chat history to `main` and pushed.

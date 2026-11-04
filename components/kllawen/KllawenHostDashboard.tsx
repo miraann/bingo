@@ -9,9 +9,8 @@ import { useWakeLock } from "@/hooks/useWakeLock";
 import { useBroadcastHostMode } from "@/hooks/useHostMode";
 import { HostLobbyShell, HeaderButton, LobbyCard, SectionLabel, Divider, OptionCard, NumberSegment, ChipButton, InfoNote, StartButton } from "@/components/HostLobby";
 import { type HostMode } from "@/components/GameModeSelector";
-import { IconToggle } from "@/components/IconToggle";
-import { HatRow } from "@/components/kllawen/HatRow";
-import { TeamScoreboard } from "@/components/kllawen/TeamScoreboard";
+import { HatBoard } from "@/components/kllawen/HatRow";
+import { TeamScoreboard, TeamScoreCard } from "@/components/kllawen/TeamScoreboard";
 import { SeekActionBar } from "@/components/kllawen/SeekActionBar";
 import { KllawenRulesModal } from "@/components/kllawen/KllawenRulesModal";
 import { KllawenWinnerModal } from "@/components/kllawen/KllawenWinnerModal";
@@ -21,6 +20,38 @@ import { TEAM_UI, describeMistake, describeResult, seekStakes } from "@/componen
 import { playCorrectSound } from "@/lib/quizSound";
 import { playHatEmpty, playHatSelect, playRingReveal, playKurdishVictory, playCountdownGo, kllawenMusic, warmUpKllawenAudio } from "@/lib/kllawenSound";
 import { MAX_ROUNDS, MAX_TRIES, ROUND_PRESETS, TEAMS, TRIES_PRESETS, otherTeam, type Team } from "@/lib/kllawenChannel";
+
+/** Toolbar button for the in-game screen (it grows with the TV via `.kl-tv`). */
+function ToolButton({
+  icon: Icon,
+  label,
+  onClick,
+  active = false,
+  activeClass = "",
+  hoverClass = "hover:bg-gray-200 hover:text-gray-600",
+}: {
+  icon: React.ElementType;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  activeClass?: string;
+  hoverClass?: string;
+}) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.06 }}
+      whileTap={{ scale: 0.9 }}
+      onClick={onClick}
+      title={label}
+      className={`flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl min-w-[4.5rem] px-3 h-16 transition-colors duration-200 cursor-pointer ${
+        active ? activeClass : `bg-gray-100 text-gray-400 ${hoverClass}`
+      }`}
+    >
+      <Icon className="w-6 h-6" strokeWidth={2.5} />
+      <span className="text-xs font-bold leading-tight whitespace-nowrap">{label}</span>
+    </motion.button>
+  );
+}
 
 const isPresetRounds = (n: number) => (ROUND_PRESETS as readonly number[]).includes(n);
 const isPresetTries = (n: number) => (TRIES_PRESETS as readonly number[]).includes(n);
@@ -47,6 +78,15 @@ export function KllawenHostDashboard({
     startGame, startFirstRound, hideRandom, seek, nextRound, endGame, resetGame,
   } = useKllawenHost(gameId);
 
+  // In game, the whole screen grows with the TV (see `.kl-tv` in globals.css).
+  const inLobby = phase === "LOBBY";
+  useEffect(() => {
+    if (inLobby) return;
+    const html = document.documentElement;
+    html.classList.add("kl-tv");
+    return () => html.classList.remove("kl-tv");
+  }, [inLobby]);
+
   const [joinUrl, setJoinUrl] = useState("");
   useEffect(() => {
     if (!gameId || typeof window === "undefined") return;
@@ -69,22 +109,6 @@ export function KllawenHostDashboard({
   useEffect(() => {
     setTriesInput(prev => !isPresetTries(maxTries) ? String(maxTries) : prev === String(maxTries) ? prev : "");
   }, [maxTries]);
-  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    bgMusicRef.current = new Audio("/audio/bg-music.mp3");
-    bgMusicRef.current.loop = true;
-    bgMusicRef.current.volume = 0.35;
-    return () => { bgMusicRef.current?.pause(); };
-  }, []);
-
-  useEffect(() => {
-    const m = bgMusicRef.current;
-    if (!m) return;
-    if (musicOn) m.play().catch(() => {});
-    else m.pause();
-  }, [musicOn]);
-
   // Sounds follow the state, so moves made from a captain's phone play here too.
   const prevLiftedRef = useRef(lifted.length);
   const prevPhaseRef = useRef(phase);
@@ -116,20 +140,24 @@ export function KllawenHostDashboard({
     prevPhaseRef.current = phase;
   }, [phase, result, lifted.length, soundOn]);
 
-  // Adaptive game music: sneaky while hiding, a drum groove that speeds up with
-  // every empty hat while seeking. The background track ducks under it.
-  const gameMusic = soundOn && (phase === "HIDING" || phase === "SEEKING");
+  // One music engine scores the page like a game show: with 🔊, suspense while
+  // the ring is hidden and sought; with 🎵, a thinking cue under the toss
+  // question and the theme everywhere else. Reveals get a moment of silence,
+  // then the theme comes back.
   useEffect(() => {
-    if (!soundOn) kllawenMusic.stop();
-    else if (phase === "HIDING") kllawenMusic.start("hiding");
-    else if (phase === "SEEKING") kllawenMusic.start("seeking");
-    else kllawenMusic.stop(phase === "ROUND_RESULT" ? 0.15 : 0.6);
-  }, [phase, soundOn]);
+    if (soundOn && phase === "HIDING") { kllawenMusic.start("hiding"); return; }
+    if (soundOn && phase === "SEEKING") { kllawenMusic.start("seeking"); return; }
+    const reveal = phase === "ROUND_RESULT";
+    if (musicOn && phase === "TOSS_QUESTION") { kllawenMusic.start("think"); return; }
+    if (musicOn && !reveal && phase !== "ENDED") { kllawenMusic.start("theme"); return; }
+    kllawenMusic.stop(reveal ? 0.15 : 0.6);
+    if (musicOn && phase === "ROUND_RESULT") {
+      const id = setTimeout(() => kllawenMusic.start("theme"), 3500);
+      return () => clearTimeout(id);
+    }
+  }, [phase, soundOn, musicOn]);
   useEffect(() => kllawenMusic.setIntensity(lifted.length), [lifted.length]);
   useEffect(() => { warmUpKllawenAudio(); return () => kllawenMusic.stop(); }, []);
-  useEffect(() => {
-    if (bgMusicRef.current) bgMusicRef.current.volume = gameMusic ? 0.08 : 0.35;
-  }, [gameMusic]);
 
   const pickHat = (hat: number) => {
     if (soundOn) playHatSelect();
@@ -147,19 +175,6 @@ export function KllawenHostDashboard({
     const v = parseInt(raw, 10);
     if (!isNaN(v) && v >= 1 && v <= MAX_TRIES) setMaxTries(v);
   };
-
-  const RulesButton = (
-    <motion.button
-      whileHover={{ scale: 1.06 }}
-      whileTap={{ scale: 0.9 }}
-      onClick={() => setShowRules(true)}
-      title="یاسای یاری"
-      className="flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-14 h-14 sm:w-16 sm:h-16 bg-gray-100 hover:bg-amber-50 text-gray-400 hover:text-amber-700 transition-colors duration-200 cursor-pointer"
-    >
-      <BookOpen size={22} strokeWidth={2.5} />
-      <span className="text-[10px] font-bold">یاسا</span>
-    </motion.button>
-  );
 
   const RulesModal = <KllawenRulesModal open={showRules} onClose={() => setShowRules(false)} totalRounds={totalRounds} maxTries={maxTries} />;
 
@@ -238,7 +253,7 @@ export function KllawenHostDashboard({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="flex flex-col gap-0.5">
               <span className="text-xs font-black text-stone-500">هەوڵەکانی دۆزینەوە</span>
-              <span className="text-[11px] font-bold text-stone-400">چەند جار تیپی دۆزەرەوە دەتوانێت هەڵە بکات لە هەر گەڕێکدا</span>
+              <span className="text-[11px] font-bold text-stone-400">چەند جار تیپی دۆزەرەوە دەتوانێت گوڵی هەڵە بکات لە هەر گەڕێکدا — پوچ لەسەر ئەنگوستیلە هەمیشە گەڕەکە کۆتایی پێدەهێنێت</span>
             </span>
             <NumberSegment
               accent="amber"
@@ -390,56 +405,59 @@ export function KllawenHostDashboard({
   const { claimPoints, missPoints } = seekStakes(lifted.length, wrongClaims);
   const resultText = result ? describeResult(result, hiderTeam) : null;
   const inToss = phase === "TOSS_INTRO" || phase === "TOSS_QUESTION" || phase === "TOSS_RESULT";
+  const scoreProps = { scores, hiderTeam, inGame: phase !== "ENDED", roster, captains };
 
   return (
-    <div dir="rtl" className="h-dvh bg-white flex flex-col items-center px-3 pt-5 md:pt-6 pb-4 gap-3 sm:gap-4 overflow-y-auto">
-      {/* ── Toolbar ───────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 w-full max-w-3xl">
-        <motion.button
-          whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.9 }}
-          onClick={resetGame} title="ڕیست کردنەوە"
-          className="flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-14 h-14 sm:w-16 sm:h-16 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors duration-200 cursor-pointer"
-        >
-          <RotateCcw size={22} strokeWidth={2.5} />
-          <span className="text-[10px] font-bold">ڕیست</span>
-        </motion.button>
-        {phase !== "ENDED" && (
-          <motion.button
-            whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.9 }}
-            onClick={endGame} title="کۆتایی یاری"
-            className="flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-14 h-14 sm:w-16 sm:h-16 bg-gray-100 hover:bg-amber-50 text-gray-400 hover:text-amber-500 transition-colors duration-200 cursor-pointer"
-          >
-            <Flag size={22} strokeWidth={2.5} />
-            <span className="text-[10px] font-bold">کۆتایی</span>
-          </motion.button>
+    <div dir="rtl" className="kl-screen bg-white flex flex-col items-center px-3 pt-3 pb-3 gap-2 overflow-y-auto overflow-x-hidden">
+      {/* ── Header: scores on the sides, toolbar and round in the middle ──── */}
+      <div className="w-full max-w-[1800px] flex flex-col md:flex-row items-center md:items-stretch justify-center gap-2 md:gap-3 flex-shrink-0">
+        {!inToss && (
+          <div className="hidden md:block flex-1 min-w-0">
+            <TeamScoreCard team="a" variant="header" className="h-full" {...scoreProps} />
+          </div>
         )}
-        <IconToggle
-          size="lg"
-          activeIcon={Music2} inactiveIcon={Music} label="میوزیك" active={musicOn}
-          onClick={() => setMusicOn(v => !v)}
-          activeClass="bg-amber-600 text-white shadow-[0_4px_14px_rgba(217,119,6,0.40)]"
-        />
-        <IconToggle
-          size="lg"
-          activeIcon={Volume2} inactiveIcon={VolumeX} label="دەنگ" active={soundOn}
-          onClick={() => setSoundOn(v => !v)}
-          activeClass="bg-amber-500 text-white shadow-[0_4px_14px_rgba(245,158,11,0.40)]"
-        />
-        <IconToggle
-          size="lg"
-          activeIcon={Monitor} inactiveIcon={Smartphone} label={onScreen ? "تەنها شاشە" : "مۆبایلی کاپتن"} active={onScreen}
-          onClick={() => setControlMode(onScreen ? "phones" : "screen")}
-          activeClass="bg-amber-700 text-white shadow-[0_4px_14px_rgba(180,83,9,0.40)]"
-        />
-        {RulesButton}
-      </div>
 
-      {!inToss && (
-        <TeamScoreboard
-          scores={scores} hiderTeam={hiderTeam}
-          inGame={phase !== "ENDED"} roster={roster} captains={captains}
-        />
-      )}
+        <div className="flex flex-col items-center justify-center gap-1.5 flex-shrink-0">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <ToolButton icon={RotateCcw} label="ڕیست" onClick={resetGame} hoverClass="hover:bg-red-50 hover:text-red-500" />
+            {phase !== "ENDED" && (
+              <ToolButton icon={Flag} label="کۆتایی" onClick={endGame} hoverClass="hover:bg-amber-50 hover:text-amber-500" />
+            )}
+            <ToolButton
+              icon={musicOn ? Music2 : Music} label="میوزیك" active={musicOn}
+              onClick={() => setMusicOn(v => !v)}
+              activeClass="bg-amber-600 text-white"
+            />
+            <ToolButton
+              icon={soundOn ? Volume2 : VolumeX} label="دەنگ" active={soundOn}
+              onClick={() => setSoundOn(v => !v)}
+              activeClass="bg-amber-500 text-white"
+            />
+            <ToolButton
+              icon={onScreen ? Monitor : Smartphone} label={onScreen ? "تەنها شاشە" : "مۆبایلی کاپتن"} active={onScreen}
+              onClick={() => setControlMode(onScreen ? "phones" : "screen")}
+              activeClass="bg-amber-700 text-white"
+            />
+            <ToolButton icon={BookOpen} label="یاسا" onClick={() => setShowRules(true)} hoverClass="hover:bg-amber-50 hover:text-amber-700" />
+          </div>
+          {phase !== "ENDED" && !inToss && (
+            <span className="text-sm font-black text-amber-700 bg-amber-50 rounded-full px-3 py-0.5">گەڕی {round} / {totalRounds}</span>
+          )}
+        </div>
+
+        {!inToss && (
+          <div className="hidden md:block flex-1 min-w-0">
+            <TeamScoreCard team="b" variant="header" className="h-full" {...scoreProps} />
+          </div>
+        )}
+
+        {/* Narrow screens: the regular two-up scoreboard under the toolbar. */}
+        {!inToss && (
+          <div className="md:hidden w-full flex justify-center">
+            <TeamScoreboard {...scoreProps} />
+          </div>
+        )}
+      </div>
 
       {/* ── Opening toss question ─────────────────────────────────────────── */}
       {phase === "TOSS_QUESTION" && toss && tossStartedAt != null && (
@@ -458,61 +476,10 @@ export function KllawenHostDashboard({
         </>
       )}
 
+      {/* ── Board: status line, hats and actions, kept together under the header;
+             the hats get the height the other two leave ──────────────────────── */}
       {phase !== "ENDED" && !inToss && (
-        <span className="text-xs font-black text-amber-700 bg-amber-50 rounded-full px-3 py-1">گەڕی {round} / {totalRounds}</span>
-      )}
-
-      {/* ── Status line ───────────────────────────────────────────────────── */}
-      <div className="flex flex-col items-center gap-1 text-center min-h-[3.5rem] px-2">
-        {(phase === "HIDING" || phase === "SEEKING") && mistake && (
-          <motion.p
-            key={`${mistake.kind}:${mistake.hat}:${triesLeft}`}
-            initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="text-base sm:text-xl font-black text-red-500"
-          >
-            {describeMistake(mistake, hiderTeam, triesLeft)}
-          </motion.p>
-        )}
-
-        {phase === "HIDING" && (
-          <>
-            <p className="text-lg sm:text-2xl font-black text-gray-800">
-              {TEAM_UI[hiderTeam].dot} {TEAM_UI[hiderTeam].label} ئەنگوستیلە دەشارێتەوە...
-            </p>
-            <p className="text-base sm:text-xl font-bold text-gray-500">
-              {captainName(hiderTeam)
-                ? `👑 ${captainName(hiderTeam)} لە مۆبایلەکەیەوە دەیشارێتەوە · یاریزانانی تیپەکە دەنگ دەدەن 🗳️`
-                : "هیچ یاریزانێک لەم تیپەدا نییە — شاردنەوەی هەڕەمەکی بەکاربهێنە"}
-            </p>
-          </>
-        )}
-
-        {phase === "SEEKING" && (
-          <>
-            <p className="text-lg sm:text-2xl font-black text-gray-800">
-              🔍 {TEAM_UI[seekerTeam].label} دەگەڕێت
-              {!onScreen && captainName(seekerTeam) ? ` — 👑 ${captainName(seekerTeam)}` : ""}
-            </p>
-            <p className="text-base sm:text-xl font-black text-gray-500">
-              {lifted.length} کڵاو پوچ کران · دۆزینەوە: <span className="text-emerald-600">+{claimPoints}</span> ·
-              هەڵە: {triesLeft > 1
-                ? <span className="text-red-500">هەوڵێک دەڕوات</span>
-                : <span className="text-red-500">+{missPoints} بۆ {TEAM_UI[hiderTeam].label}</span>}
-              {maxTries > 1 && <> · هەوڵ: <span className="text-amber-600">{triesLeft} / {maxTries}</span></>}
-            </p>
-          </>
-        )}
-
-        {phase === "ROUND_RESULT" && resultText && (
-          <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center gap-1">
-            <p className={`text-xl sm:text-3xl font-black ${resultText.good ? "text-emerald-600" : "text-red-500"}`}>{resultText.title}</p>
-            <p className="text-sm sm:text-lg font-bold text-gray-600">{resultText.detail}</p>
-          </motion.div>
-        )}
-      </div>
-
-      {phase !== "ENDED" && !inToss && (
-        <HatRow
+        <HatBoard
           lifted={lifted}
           revealRing={phase === "ROUND_RESULT" ? result?.ringHat ?? null : null}
           wrongHat={
@@ -523,42 +490,93 @@ export function KllawenHostDashboard({
           interactive={onScreen && phase === "SEEKING"}
           sweeping={phase === "HIDING"}
           onPick={pickHat}
+          top={
+            <div className="flex flex-col items-center gap-0.5 text-center min-h-[3rem] px-2">
+              {phase === "SEEKING" && mistake && (
+                <motion.p
+                  key={`${mistake.hat}:${triesLeft}`}
+                  initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                  className="text-base sm:text-xl font-black text-red-500"
+                >
+                  {describeMistake(mistake, triesLeft)}
+                </motion.p>
+              )}
+
+              {phase === "HIDING" && (
+                <>
+                  <p className="text-lg sm:text-2xl font-black text-gray-800">
+                    {TEAM_UI[hiderTeam].dot} {TEAM_UI[hiderTeam].label} ئەنگوستیلە دەشارێتەوە...
+                  </p>
+                  <p className="text-base sm:text-xl font-bold text-gray-500">
+                    {captainName(hiderTeam)
+                      ? `👑 ${captainName(hiderTeam)} لە مۆبایلەکەیەوە دەیشارێتەوە · یاریزانانی تیپەکە دەنگ دەدەن 🗳️`
+                      : "هیچ یاریزانێک لەم تیپەدا نییە — شاردنەوەی هەڕەمەکی بەکاربهێنە"}
+                  </p>
+                </>
+              )}
+
+              {phase === "SEEKING" && (
+                <>
+                  <p className="text-lg sm:text-2xl font-black text-gray-800">
+                    🔍 {TEAM_UI[seekerTeam].label} دەگەڕێت
+                    {!onScreen && captainName(seekerTeam) ? ` — 👑 ${captainName(seekerTeam)}` : ""}
+                  </p>
+                  <p className="text-base sm:text-xl font-black text-gray-500">
+                    {lifted.length} کڵاو پوچ کران · دۆزینەوە: <span className="text-emerald-600">+{claimPoints}</span> ·
+                    هەڵە: <span className="text-red-500">+{missPoints} بۆ {TEAM_UI[hiderTeam].label}</span>
+                    {maxTries > 1 && <> · هەوڵی گوڵ: <span className="text-amber-600">{triesLeft} / {maxTries}</span></>}
+                  </p>
+                </>
+              )}
+
+              {phase === "ROUND_RESULT" && resultText && (
+                <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center gap-1">
+                  <p className={`text-xl sm:text-3xl font-black ${resultText.good ? "text-emerald-600" : "text-red-500"}`}>{resultText.title}</p>
+                  <p className="text-sm sm:text-lg font-bold text-gray-600">{resultText.detail}</p>
+                </motion.div>
+              )}
+            </div>
+          }
+          bottom={
+            // A fixed slot while seeking, so picking a hat never resizes the hats.
+            <div className={`flex justify-center items-center ${phase === "SEEKING" && onScreen ? "min-h-[5.75rem]" : ""}`}>
+              {phase === "HIDING" && (
+                <motion.button
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+                  onClick={hideRandom}
+                  className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-2xl px-6 py-2.5 cursor-pointer"
+                >
+                  <Dices className="w-[1.125rem] h-[1.125rem]" /> شاردنەوەی هەڕەمەکی
+                </motion.button>
+              )}
+
+              {phase === "SEEKING" && onScreen && (selectedHat != null ? (
+                <SeekActionBar
+                  layout="row"
+                  hat={selectedHat}
+                  liftedCount={lifted.length}
+                  hiderTeam={hiderTeam}
+                  triesLeft={triesLeft}
+                  wrongClaims={wrongClaims}
+                  onAction={action => { seek(selectedHat, action); setSelectedHat(null); }}
+                  onCancel={() => setSelectedHat(null)}
+                />
+              ) : (
+                <p className="text-sm font-bold text-gray-400">کرتە لە کڵاوێک بکە</p>
+              ))}
+
+              {phase === "ROUND_RESULT" && (
+                <motion.button
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+                  onClick={nextRound}
+                  className="bg-amber-700 hover:bg-amber-800 text-white text-lg font-black rounded-2xl px-8 py-3 shadow-lg cursor-pointer"
+                >
+                  {gameOver ? "کۆتایی یاری 🏆" : "گەڕی داهاتوو"}
+                </motion.button>
+              )}
+            </div>
+          }
         />
-      )}
-
-      {/* ── Actions ───────────────────────────────────────────────────────── */}
-      {phase === "HIDING" && (
-        <motion.button
-          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
-          onClick={hideRandom}
-          className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-2xl px-6 py-2.5 cursor-pointer"
-        >
-          <Dices size={18} /> شاردنەوەی هەڕەمەکی
-        </motion.button>
-      )}
-
-      {phase === "SEEKING" && onScreen && (selectedHat != null ? (
-        <SeekActionBar
-          hat={selectedHat}
-          liftedCount={lifted.length}
-          hiderTeam={hiderTeam}
-          triesLeft={triesLeft}
-          wrongClaims={wrongClaims}
-          onAction={action => { seek(selectedHat, action); setSelectedHat(null); }}
-          onCancel={() => setSelectedHat(null)}
-        />
-      ) : (
-        <p className="text-sm font-bold text-gray-400">کرتە لە کڵاوێک بکە</p>
-      ))}
-
-      {phase === "ROUND_RESULT" && (
-        <motion.button
-          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
-          onClick={nextRound}
-          className="bg-amber-700 hover:bg-amber-800 text-white font-black rounded-2xl px-8 py-3 shadow-lg cursor-pointer"
-        >
-          {gameOver ? "کۆتایی یاری 🏆" : "گەڕی داهاتوو"}
-        </motion.button>
       )}
 
       <TossIntro open={phase === "TOSS_INTRO"} sound={soundOn} />

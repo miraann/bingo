@@ -76,12 +76,9 @@ export function describeResult(result: RoundResult, hiderTeam: Team): {
   }
 }
 
-/** The notice after a wrong call that only cost a try. */
-export function describeMistake(mistake: SeekMistake, hiderTeam: Team, triesLeft: number): string {
-  const left = `${triesLeft} هەوڵ ماوە`;
-  return mistake.kind === "miss"
-    ? `هەڵە! ئەنگوستیلەکە لەژێر کڵاوی ${hatNumber(mistake.hat)} بوو — ${TEAM_UI[hiderTeam].label} دووبارە دەیشارێتەوە · ${left}`
-    : `هەڵە! کڵاوی ${hatNumber(mistake.hat)} بەتاڵ بوو — −1 خاڵ ئەگەر بیدۆزنەوە · ${left}`;
+/** The notice after a wrong گوڵ that only cost a try. */
+export function describeMistake(mistake: SeekMistake, triesLeft: number): string {
+  return `هەڵە! کڵاوی ${hatNumber(mistake.hat)} بەتاڵ بوو — −1 خاڵ ئەگەر بیدۆزنەوە · ${triesLeft} هەوڵ ماوە`;
 }
 
 /** What each seeker move is worth right now, for the stakes hint. */

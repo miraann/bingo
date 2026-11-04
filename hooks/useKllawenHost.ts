@@ -119,7 +119,7 @@ function savePersisted(gameId: string, game: HostGame) {
   } catch {}
 }
 
-/** Any hat still down — after a wrong پوچ the ring is hidden again among those. */
+/** Any hat still down (all of them, except in a game saved mid re-hide by an older version). */
 function randomHat(lifted: number[]) {
   const down = Array.from({ length: HAT_COUNT }, (_, h) => h).filter(h => !lifted.includes(h));
   return down[Math.floor(Math.random() * down.length)];
@@ -320,10 +320,9 @@ export function useKllawenHost(gameId: string) {
     }
   }, [game.phase, tossStartedAt, tossLimitMs, update, finishToss]);
 
-  /** Lifted hats stay up: a re-hide after a wrong پوچ goes under one still down. */
   const hide = useCallback((hat: number) => {
     const g = gameRef.current;
-    if (g.phase !== "HIDING" || hat < 0 || hat >= HAT_COUNT || g.lifted.includes(hat)) return;
+    if (g.phase !== "HIDING" || !Number.isInteger(hat) || hat < 0 || hat >= HAT_COUNT || g.lifted.includes(hat)) return;
     update(prev => ({ ...prev, ringHat: hat, phase: "SEEKING", mistake: null }));
   }, [update]);
 
@@ -338,10 +337,6 @@ export function useKllawenHost(gameId: string) {
         triesLeft: prev.triesLeft - (mistake ? 1 : 0),
         wrongClaims: prev.wrongClaims + (mistake?.kind === "wrongClaim" ? 1 : 0),
       }));
-      return;
-    }
-    if (resolution.kind === "rehide") {
-      update(prev => ({ ...prev, phase: "HIDING", ringHat: null, mistake: resolution.mistake, triesLeft: prev.triesLeft - 1 }));
       return;
     }
     const { result } = resolution;

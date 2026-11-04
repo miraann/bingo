@@ -74,11 +74,8 @@ export function IntroTimer({ barClass, sound = false }: { barClass: string; soun
   return (
     <>
       <div className="relative w-20 h-20 sm:w-28 sm:h-28 flex items-center justify-center">
-        <motion.div
-          className="absolute inset-0 rounded-full border-[6px] border-amber-100 border-t-amber-600"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        />
+        {/* CSS spin runs on the compositor, so it stays smooth on slow TV browsers. */}
+        <div className="absolute inset-0 rounded-full border-[6px] border-amber-100 border-t-amber-600 animate-spin" />
         <AnimatePresence mode="popLayout">
           <motion.span
             key={left}
@@ -179,7 +176,7 @@ export function RoundIntro({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm flex items-center justify-center overflow-y-auto py-6"
+          className="fixed inset-0 z-50 bg-white/95 flex items-center justify-center overflow-y-auto py-6"
         >
           <Countdown key={round} round={round} hiderTeam={hiderTeam} result={result} scores={scores} sound={sound} />
         </motion.div>

@@ -22,7 +22,7 @@ export function TossIntro({ open, sound = false }: { open: boolean; sound?: bool
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm flex items-center justify-center overflow-y-auto py-6"
+          className="fixed inset-0 z-50 bg-white/95 flex items-center justify-center overflow-y-auto py-6"
         >
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
