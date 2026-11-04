@@ -8,11 +8,13 @@ import { HAT_COUNT } from "@/lib/kllawenChannel";
 export function KllawenRulesModal({
   open,
   onClose,
-  targetScore,
+  totalRounds,
+  maxTries,
 }: {
   open: boolean;
   onClose: () => void;
-  targetScore: number;
+  totalRounds: number;
+  maxTries: number;
 }) {
   const rows = [
     { label: "گوڵ — یەکەم کڵاو ئەنگوستیلەی تێدابێت", value: "0", note: "کڵاوەکان دەگوازرێنەوە", tone: "bg-gray-50 text-gray-700" },
@@ -76,7 +78,14 @@ export function KllawenRulesModal({
               <li>یاری بە پرسیارێک دەست پێدەکات: یەکەم کەس وەڵامی ڕاست بداتەوە، تیپەکەی یەکەمجار ئەنگوستیلە دەشارێتەوە.</li>
               <li>نموونە: ٧ کڵاو پوچ کران، کڵاوی هەشتەم ئەنگوستیلەی تێدایە و دەڵێن «پوچ» ← +٣ بۆ تیپی شارەوە.</li>
               <li>ئەگەر هەموو کڵاوە بەتاڵەکان پوچ بکرێن، ئەنگوستیلەکە دۆزراوەتەوە: +{HAT_COUNT - 1} بۆ تیپی دۆزەرەوە.</li>
-              <li>یەکەم تیپ کە بگاتە {targetScore} خاڵ دەیباتەوە.</li>
+              {maxTries > 1 && (
+                <li>
+                  تیپی دۆزەرەوە {maxTries} هەوڵی هەیە: هەڵەیەک هەوڵێک دەبات، تەنها دوایین هەڵە خاڵ دەدات بە تیپی شارەوە.
+                  ئەگەر «پوچ» لەسەر کڵاوی ئەنگوستیلە بکرێت، ئەنگوستیلەکە دووبارە دەشاردرێتەوە.
+                  هەر «گوڵ»ێکی هەڵە −1 خاڵ لە خاڵی دۆزینەوەکە کەم دەکاتەوە (کڵاوەکەشی خاڵی بۆ ناژمێردرێت).
+                </li>
+              )}
+              <li>یاری {totalRounds} گەڕە — لە کۆتاییدا ئەو تیپەی خاڵی زیاترە دەیباتەوە.</li>
             </ul>
           </motion.div>
         </motion.div>

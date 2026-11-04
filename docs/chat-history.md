@@ -45,3 +45,75 @@ Passwords, database connection strings and API keys have been removed.
   count, and voting closes when the game starts. The TV lobby shows each player's
   vote count; the host can still click 👑 to pick a captain, and a new vote hands
   the choice back to the team.
+
+### Opening question to pick the first hider
+- **Request:** When «دەستپێکردنی کڵاوێن» is pressed, run a 5-second countdown and a
+  question for both teams; the team that answers correctly first hides in round 1.
+- **Done:** A random quiz question is shown on the TV and every phone after a
+  countdown. The TV shows who has answered (not what they picked). The fastest
+  correct answer wins the first hide for that team.
+
+### Toss results by team
+- **Request:** Show both teams' answers in the results.
+- **Done:** The results screen shows a red and a blue card, each listing that
+  team's members fastest first, with their pick (✓/✗), time and overall rank. The
+  fastest correct answer is highlighted ⚡, and the winning team's card gets a gold
+  ring. Members who didn't answer appear in grey.
+
+## 2026-11-04
+
+### Sound and music for opening hats
+- **Request:** Add sound and music for opening hats, then make it Kurdish in style.
+- **Done:** Added `lib/kllawenSound.ts`, which generates every sound live in the
+  browser with Web Audio (no new audio files). It uses maqam Bayati (and maqam Kurd
+  for losing the ring) and Kurdish instruments: dahol, daf, tembûr, a shimshal and
+  a tilîlî ululation, over a heartbeat pulse. Sounds play for picking a hat, an
+  empty hat (pitch rises as hats run out), finding the ring, losing it and game over.
+
+### A more realistic shimshal
+- **Request:** Make the shimshal sound more real, use it instead of the zurna, and
+  make it sound less cheap.
+- **Done:** The zurna was replaced by the shimshal everywhere. The shimshal is now
+  a physical model of a cane flute (a waveguide based on Perry Cook's STK flute,
+  running as an AudioWorklet), so breath, note onsets and glides come from the model.
+
+### List of sound files
+- **Request:** Locate all sound files so the user can say which to change.
+- **Done:** Listed the audio files in `public/audio/` (background music, bell,
+  winner cheer, the 75 Bingo number voices, and one unused file) and every
+  generated Kllawen sound, numbered for reference.
+
+### High-end lobby design
+- **Request:** Sort and redesign the Kllawen lobby to look modern and high end,
+  then do the same for Quiz and Bingo.
+- **Done:** All three lobbies share a new layout (`components/HostLobby.tsx`): a
+  header with icon, connection badge, player count and game switcher; a join panel
+  with QR code, game code and copy-link box; then settings, players and a
+  full-width start button that explains why it is disabled. Each game keeps its
+  colour: green Quiz, purple Bingo, amber Kllawen. Checked at desktop and 375px.
+
+### Play by rounds, not points
+- **Request:** End the Kllawen game after a number of rounds instead of a points target.
+- **Done:** The lobby setting is now «ژمارەی گەڕەکان» with 6 / 10 / 16 presets
+  (default 10) or any number 1–50. The team with more points after the last round
+  wins; equal points is a tie. The round badge shows e.g. "گەڕی 3 / 10".
+
+### Countdown sound
+- **Request:** Add sound to the countdown, then use a ring (bell) instead of the
+  short tembûr note.
+- **Done:** Each second plays a bell note that rises as the number drops, with a
+  stick tap and daf; drums build from 3 and a full hit plays at zero. It plays on
+  the host screen only, and the host's sound button mutes it.
+
+### Number of tries to find the ring
+- **Request:** Let the host choose how many tries the finder team gets, and take a
+  point off for each wrong گوڵ if they win.
+- **Done:** New lobby setting «هەوڵەکانی دۆزینەوە» (1, 2, 3 or up to 9; default 1).
+  A wrong گوڵ marks the hat ✗ and uses a try. A wrong پوچ on the ring's hat
+  reveals it, so the hiders hide it again under a remaining hat. Each wrong گوڵ
+  costs −1 point if the finders find the ring.
+
+### Saving to GitHub
+- **Request:** Save all files and chats to GitHub.
+- **Done:** Committed all changes and this chat history to `main` and pushed.
+  `.claude/settings.local.json` (local Claude Code permissions) was left out.

@@ -1,4 +1,4 @@
-import { HAT_COUNT, otherTeam, type RoundResult, type Team } from "@/lib/kllawenChannel";
+import { HAT_COUNT, otherTeam, seekerPoints, type RoundResult, type SeekMistake, type Team } from "@/lib/kllawenChannel";
 
 /** Full class strings (not built dynamically) so Tailwind keeps them. */
 export const TEAM_UI: Record<Team, {
@@ -76,7 +76,15 @@ export function describeResult(result: RoundResult, hiderTeam: Team): {
   }
 }
 
+/** The notice after a wrong call that only cost a try. */
+export function describeMistake(mistake: SeekMistake, hiderTeam: Team, triesLeft: number): string {
+  const left = `${triesLeft} هەوڵ ماوە`;
+  return mistake.kind === "miss"
+    ? `هەڵە! ئەنگوستیلەکە لەژێر کڵاوی ${hatNumber(mistake.hat)} بوو — ${TEAM_UI[hiderTeam].label} دووبارە دەیشارێتەوە · ${left}`
+    : `هەڵە! کڵاوی ${hatNumber(mistake.hat)} بەتاڵ بوو — −1 خاڵ ئەگەر بیدۆزنەوە · ${left}`;
+}
+
 /** What each seeker move is worth right now, for the stakes hint. */
-export function seekStakes(liftedCount: number) {
-  return { claimPoints: liftedCount, missPoints: HAT_COUNT - liftedCount };
+export function seekStakes(liftedCount: number, wrongClaims = 0) {
+  return { claimPoints: seekerPoints(liftedCount, wrongClaims), missPoints: HAT_COUNT - liftedCount };
 }

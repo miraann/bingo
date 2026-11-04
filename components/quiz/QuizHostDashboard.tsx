@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Check, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pause, Play, Lightbulb, LightbulbOff, Calculator } from "lucide-react";
+import { Users, Music, Music2, Bell, BellOff, RotateCcw, Flag, Timer, Pause, Play, Lightbulb, LightbulbOff, Calculator, BookOpen, Trophy, Landmark, FlaskConical, Mountain, Puzzle } from "lucide-react";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { listQuizTopics } from "@/lib/quizLoader";
 import { useQuizHost, NEXT_QUESTION_LOADING_MS } from "@/hooks/useQuizHost";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useBroadcastHostMode } from "@/hooks/useHostMode";
-import { QRPanel } from "@/components/QRPanel";
+import { HostLobbyShell, LobbyCard, SectionLabel, Divider, OptionCard, NumberSegment, SwitchRow, StartButton } from "@/components/HostLobby";
 import { PlayerLobbyList } from "@/components/PlayerLobbyList";
-import { GameModeToggle, type HostMode } from "@/components/GameModeSelector";
+import { type HostMode } from "@/components/GameModeSelector";
 import { IconToggle } from "@/components/IconToggle";
 import { QuizAnswerButtons } from "@/components/quiz/QuizAnswerButtons";
 import { QuizLeaderboard } from "@/components/quiz/QuizLeaderboard";
@@ -20,6 +20,14 @@ import { NextQuestionLoader } from "@/components/quiz/NextQuestionLoader";
 import { QuizPointsInfoModal } from "@/components/quiz/QuizPointsInfoModal";
 
 const QUIZ_TIMER_PRESETS = [10, 15, 20, 30] as const;
+
+const TOPIC_ICONS: Record<string, React.ElementType> = {
+  sport: Trophy,
+  history: Landmark,
+  science: FlaskConical,
+  kurdish: Mountain,
+  riddles: Puzzle,
+};
 
 export function QuizHostDashboard({
   mode,
@@ -71,7 +79,7 @@ export function QuizHostDashboard({
   const [showPlayers, setShowPlayers] = useState(false);
   const [showPointsInfo, setShowPointsInfo] = useState(false);
   const [customInput, setCustomInput] = useState(String(questionDurationSec ?? currentQuestion?.timeLimit ?? 15));
-  const [customCountInput, setCustomCountInput] = useState(String(questionCount));
+  const [customCountInput, setCustomCountInput] = useState("");
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -111,7 +119,7 @@ export function QuizHostDashboard({
 
   const maxQuestions = topics.find(t => t.key === topicKey)?.count ?? 0;
   const QUESTION_COUNT_PRESETS = [5, 10, 15, 20].filter(n => n <= maxQuestions);
-  const selectCountPreset = (n: number) => { setQuestionCount(n); setCustomCountInput(String(n)); };
+  const selectCountPreset = (n: number) => { setQuestionCount(n); setCustomCountInput(""); };
   const handleCustomCountInput = (raw: string) => {
     setCustomCountInput(raw);
     const v = parseInt(raw, 10);
@@ -122,126 +130,82 @@ export function QuizHostDashboard({
     .map(p => ({ ...p, score: leaderboard.find(l => l.playerId === p.playerId)?.score ?? 0 }))
     .sort((a, b) => b.score - a.score);
 
-  const ConnectionBadge = (
-    <div className="flex items-center gap-1.5 text-xs text-gray-400">
-      <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-gray-300"}`} />
-      {connected ? "پەیوەستە" : "چاوەڕوانی پەیوەستبوون..."}
-    </div>
-  );
-
   /* ═══════════════════════════════ LOBBY ═══════════════════════════════ */
   if (phase === "LOBBY") {
     return (
-      <div dir="rtl" className="h-dvh bg-white overflow-y-auto">
-        {/* min-h-full inner wrapper: centered when it fits, top stays reachable when it scrolls */}
-        <div className="min-h-full flex flex-col items-center justify-center gap-5 sm:gap-6 px-4 py-6 sm:py-8 w-full max-w-5xl 2xl:max-w-6xl mx-auto">
-          <div className="flex flex-col items-center gap-1">
-            <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-800">داشبۆردی پرسیار</h1>
-            {ConnectionBadge}
-          </div>
-
-          <div className="flex flex-col md:flex-row sm:landscape:flex-row items-center md:items-start sm:landscape:items-start justify-center gap-5 sm:gap-6 md:gap-8 lg:gap-12 w-full">
-            {gameId && joinUrl && (
-              <div className="flex-shrink-0 md:sticky md:top-8 sm:landscape:sticky sm:landscape:top-4">
-                <QRPanel gameId={gameId} joinUrl={joinUrl} />
-              </div>
-            )}
-
-            <div className="flex flex-col items-center gap-5 sm:gap-6 w-full max-w-md lg:max-w-lg 2xl:max-w-xl">
-              <div className="flex flex-col items-center gap-2 w-full">
-                <span className="text-xs font-bold text-gray-400 self-start">
-                  {topicKey ? "بابەت هەڵبژێردرا ✓" : "کرتە لەسەر بابەتێک بکە بۆ هەڵبژاردنی 👇"}
-                </span>
-                <div className="flex flex-wrap justify-center gap-2 w-full">
-                  {topics.map(t => {
-                    const selected = topicKey === t.key;
-                    return (
-                      <motion.button
-                        key={t.key}
-                        type="button"
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setTopic(t.key)}
-                        aria-pressed={selected}
-                        className={`
-                          relative w-[calc(50%-0.25rem)] sm:w-[calc(25%-0.375rem)]
-                          rounded-2xl px-3 py-3.5 font-bold text-sm text-center cursor-pointer
-                          border-2 transition-colors duration-150
-                          ${selected
-                            ? "bg-emerald-600 border-emerald-600 text-white shadow-lg"
-                            : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300 hover:bg-emerald-50"}
-                        `}
-                      >
-                        {selected && (
-                          <span className="absolute top-1.5 left-1.5 w-4 h-4 rounded-full bg-white flex items-center justify-center">
-                            <Check size={11} strokeWidth={3} className="text-emerald-600" />
-                          </span>
-                        )}
-                        {t.label}
-                        <span className="block text-[10px] font-normal opacity-70 mt-0.5">{t.count} پرسیار</span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {topicKey && (
-                <div className="flex flex-col items-center gap-1.5">
-                  <span className="text-xs font-bold text-gray-400">ژمارەی پرسیار بۆ یاری</span>
-                  <div className="flex flex-wrap justify-center gap-1.5" dir="ltr">
-                    {QUESTION_COUNT_PRESETS.map(n => (
-                      <motion.button
-                        key={n} whileTap={{ scale: 0.92 }}
-                        onClick={() => selectCountPreset(n)}
-                        className={`
-                          px-2.5 py-1 rounded-xl text-xs font-black cursor-pointer transition-all duration-200
-                          ${questionCount === n ? "bg-emerald-600 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}
-                        `}
-                      >
-                        {n}
-                      </motion.button>
-                    ))}
-                    <input
-                      type="number" min="1" max={maxQuestions} value={customCountInput}
-                      onChange={e => handleCustomCountInput(e.target.value)}
-                      className="w-14 text-center border-2 border-gray-200 rounded-xl text-xs font-bold py-1 focus:border-emerald-400 focus:outline-none"
-                    />
-                  </div>
-                  <span className="text-[10px] text-gray-300">لە کۆی {maxQuestions} پرسیار</span>
-                </div>
-              )}
-
-              <div className="flex flex-col items-center gap-1.5">
-                {HintsToggle}
-                <span className="text-[10px] text-gray-400 text-center max-w-[16rem]">
-                  هەر یاریزانێک یەکجار لە یارییەکدا دەتوانێت ٢ وەڵام لاببات و یەکجار وەڵامی ڕاست ببینێت
-                </span>
-              </div>
-
-              <PlayerLobbyList players={players} />
-
-              <GameModeToggle mode={mode} onChange={onModeChange} />
-
-              <motion.button
-                whileHover={topicKey ? { scale: 1.03 } : undefined}
-                whileTap={topicKey ? { scale: 0.95 } : undefined}
-                onClick={startQuiz}
-                disabled={!topicKey}
-                className={`
-                  w-full sm:w-auto font-black rounded-2xl px-8 py-3.5 text-lg text-white shadow-[0_6px_24px_rgba(16,185,129,0.45)]
-                  ${topicKey ? "bg-emerald-600 hover:bg-emerald-700 cursor-pointer" : "bg-gray-200 cursor-not-allowed"}
-                `}
-              >
-                دەستپێکردنی پرسیار
-              </motion.button>
-
-              <button onClick={handleNewGame} className="text-xs text-gray-300 hover:text-gray-500 underline cursor-pointer">
-                دروستکردنی یاریی نوێ
-              </button>
+      <HostLobbyShell
+        accent="emerald" icon="🧠" title="داشبۆردی پرسیار"
+        connected={connected} playerCount={players.length}
+        mode={mode} onModeChange={onModeChange}
+        gameId={gameId} joinUrl={joinUrl} onNewGame={handleNewGame}
+      >
+        <LobbyCard className="flex flex-col gap-5">
+          <div>
+            <SectionLabel>
+              {topicKey ? "بابەت هەڵبژێردرا ✓" : "کرتە لەسەر بابەتێک بکە بۆ هەڵبژاردنی"}
+            </SectionLabel>
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {topics.map(t => {
+                const Icon = TOPIC_ICONS[t.key] ?? BookOpen;
+                return (
+                  <OptionCard
+                    key={t.key}
+                    accent="emerald"
+                    selected={topicKey === t.key}
+                    onClick={() => setTopic(t.key)}
+                    icon={<Icon size={18} strokeWidth={2.25} />}
+                    label={t.label}
+                    hint={`${t.count} پرسیار`}
+                  />
+                );
+              })}
             </div>
           </div>
-        </div>
-      </div>
+
+          {topicKey && (
+            <>
+              <Divider />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-black text-stone-500">ژمارەی پرسیار بۆ یاری</span>
+                  <span className="text-[11px] text-stone-400">لە کۆی {maxQuestions} پرسیار</span>
+                </div>
+                <NumberSegment
+                  accent="emerald"
+                  presets={QUESTION_COUNT_PRESETS}
+                  value={questionCount}
+                  onSelect={selectCountPreset}
+                  inputValue={customCountInput}
+                  onInput={handleCustomCountInput}
+                  min={1} max={maxQuestions}
+                  label="ژمارەی پرسیار بۆ یاری"
+                />
+              </div>
+            </>
+          )}
+
+          <Divider />
+
+          <SwitchRow
+            accent="emerald"
+            icon={<Lightbulb size={18} strokeWidth={2.25} />}
+            label="یارمەتی"
+            hint="هەر یاریزانێک یەکجار لە یارییەکدا دەتوانێت ٢ وەڵام لاببات و یەکجار وەڵامی ڕاست ببینێت"
+            checked={hintsEnabled}
+            onChange={setHintsEnabled}
+          />
+        </LobbyCard>
+
+        <PlayerLobbyList players={players} />
+
+        <StartButton
+          accent="emerald"
+          onClick={startQuiz}
+          disabled={!topicKey}
+          label="دەستپێکردنی پرسیار"
+          hint="کرتە لەسەر بابەتێک بکە بۆ هەڵبژاردنی"
+        />
+      </HostLobbyShell>
     );
   }
 

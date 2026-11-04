@@ -71,7 +71,8 @@ export function useKllawenPlayer(gameId: string) {
   useEffect(() => { playerRef.current = player; }, [player]);
   useEffect(() => { stateRef.current = state; }, [state]);
   const myTeamRef = useRef<Team | null>(null);
-  const voteRound = state?.phase === "HIDING" ? state.round : null;
+  // A re-hide after a wrong پوچ (one try fewer) starts a fresh vote.
+  const voteRound = state?.phase === "HIDING" ? `${state.round}:${state.triesLeft}` : null;
   useEffect(() => { setVotes({}); }, [voteRound]);
 
   /** When this phone first showed the toss question — answer times are

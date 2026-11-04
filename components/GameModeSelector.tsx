@@ -46,16 +46,17 @@ export function GameModeToggle({
   onChange: (mode: HostMode) => void;
 }) {
   return (
-    <div className="flex items-center gap-1 bg-gray-100 rounded-2xl p-1">
+    <div className="flex items-center gap-1 bg-stone-100/80 ring-1 ring-stone-200/70 rounded-2xl p-1">
       {MODE_BUTTONS.map(b => (
         <button
           key={b.mode}
           type="button"
           onClick={() => onChange(b.mode)}
+          aria-pressed={mode === b.mode}
           className={`
             flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-2 text-sm font-bold cursor-pointer
             transition-all duration-150
-            ${mode === b.mode ? `${b.activeClass} text-white shadow-md scale-[1.02]` : "text-gray-400 hover:text-gray-600"}
+            ${mode === b.mode ? `${b.activeClass} text-white shadow-md` : "text-stone-400 hover:text-stone-700 hover:bg-white/70"}
           `}
         >
           <span className="text-base leading-none">{b.icon}</span> {b.label}

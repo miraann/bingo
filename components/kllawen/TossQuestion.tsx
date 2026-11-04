@@ -13,7 +13,7 @@ function formatSeconds(ms: number) {
 }
 
 /** Full-screen countdown before the toss question opens, on the TV and every phone. */
-export function TossIntro({ open }: { open: boolean }) {
+export function TossIntro({ open, sound = false }: { open: boolean; sound?: boolean }) {
   return (
     <AnimatePresence>
       {open && (
@@ -43,7 +43,7 @@ export function TossIntro({ open }: { open: boolean }) {
                 یەکەم کەس وەڵامی ڕاست بداتەوە، تیپەکەی یەکەمجار ئەنگوستیلە دەشارێتەوە 💍
               </p>
             </div>
-            <IntroTimer barClass="bg-amber-600" />
+            <IntroTimer barClass="bg-amber-600" sound={sound} />
           </motion.div>
         </motion.div>
       )}

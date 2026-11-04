@@ -5,8 +5,11 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { listQuizTopics, loadQuizQuestions, toPublicQuestion, type QuizQuestion } from "@/lib/quizLoader";
 import {
-  DEFAULT_TARGET_SCORE,
+  DEFAULT_MAX_TRIES,
+  DEFAULT_TOTAL_ROUNDS,
   HAT_COUNT,
+  MAX_ROUNDS,
+  MAX_TRIES,
   KLLAWEN_EVENTS,
   ROUND_INTRO_MS,
   TEAMS,
@@ -28,6 +31,7 @@ import {
   type RoundResult,
   type SeekAction,
   type SeekHatPayload,
+  type SeekMistake,
   type Team,
   type TeamMode,
   type TossAnswer,
@@ -48,7 +52,11 @@ interface HostGame {
   phase: KllawenPhase;
   controlMode: ControlMode;
   teamMode: TeamMode;
-  targetScore: number;
+  totalRounds: number;
+  maxTries: number;
+  triesLeft: number;
+  wrongClaims: number;
+  mistake: SeekMistake | null;
   hiderTeam: Team;
   scores: Record<Team, number>;
   round: number;
@@ -68,7 +76,11 @@ const INITIAL_GAME: HostGame = {
   phase: "LOBBY",
   controlMode: "phones",
   teamMode: "choose",
-  targetScore: DEFAULT_TARGET_SCORE,
+  totalRounds: DEFAULT_TOTAL_ROUNDS,
+  maxTries: DEFAULT_MAX_TRIES,
+  triesLeft: DEFAULT_MAX_TRIES,
+  wrongClaims: 0,
+  mistake: null,
   hiderTeam: "a",
   scores: { a: 0, b: 0 },
   round: 0,
@@ -107,8 +119,10 @@ function savePersisted(gameId: string, game: HostGame) {
   } catch {}
 }
 
-function randomHat() {
-  return Math.floor(Math.random() * HAT_COUNT);
+/** Any hat still down — after a wrong پوچ the ring is hidden again among those. */
+function randomHat(lifted: number[]) {
+  const down = Array.from({ length: HAT_COUNT }, (_, h) => h).filter(h => !lifted.includes(h));
+  return down[Math.floor(Math.random() * down.length)];
 }
 
 function randomTeam(): Team {
@@ -208,7 +222,11 @@ export function useKllawenHost(gameId: string) {
     phase: game.phase,
     controlMode: game.controlMode,
     teamMode: game.teamMode,
-    targetScore: game.targetScore,
+    totalRounds: game.totalRounds,
+    maxTries: game.maxTries,
+    triesLeft: game.triesLeft,
+    wrongClaims: game.wrongClaims,
+    mistake: game.mistake,
     hiderTeam: game.hiderTeam,
     scores: game.scores,
     round: game.round,
@@ -302,17 +320,28 @@ export function useKllawenHost(gameId: string) {
     }
   }, [game.phase, tossStartedAt, tossLimitMs, update, finishToss]);
 
+  /** Lifted hats stay up: a re-hide after a wrong پوچ goes under one still down. */
   const hide = useCallback((hat: number) => {
-    if (gameRef.current.phase !== "HIDING" || hat < 0 || hat >= HAT_COUNT) return;
-    update(g => ({ ...g, ringHat: hat, lifted: [], phase: "SEEKING" }));
+    const g = gameRef.current;
+    if (g.phase !== "HIDING" || hat < 0 || hat >= HAT_COUNT || g.lifted.includes(hat)) return;
+    update(prev => ({ ...prev, ringHat: hat, phase: "SEEKING", mistake: null }));
   }, [update]);
 
   const seek = useCallback((hat: number, action: SeekAction) => {
     const g = gameRef.current;
     if (g.phase !== "SEEKING" || g.ringHat == null || hat < 0 || hat >= HAT_COUNT || g.lifted.includes(hat)) return;
-    const resolution = resolveSeek(g.ringHat, g.lifted, hat, action, g.hiderTeam);
+    const resolution = resolveSeek(g.ringHat, g.lifted, hat, action, g.hiderTeam, g.triesLeft, g.wrongClaims);
     if (resolution.kind === "continue") {
-      update(prev => ({ ...prev, lifted: resolution.lifted }));
+      const { mistake = null } = resolution;
+      update(prev => ({
+        ...prev, lifted: resolution.lifted, mistake,
+        triesLeft: prev.triesLeft - (mistake ? 1 : 0),
+        wrongClaims: prev.wrongClaims + (mistake?.kind === "wrongClaim" ? 1 : 0),
+      }));
+      return;
+    }
+    if (resolution.kind === "rehide") {
+      update(prev => ({ ...prev, phase: "HIDING", ringHat: null, mistake: resolution.mistake, triesLeft: prev.triesLeft - 1 }));
       return;
     }
     const { result } = resolution;
@@ -320,6 +349,7 @@ export function useKllawenHost(gameId: string) {
       ...prev,
       lifted: resolution.lifted,
       result,
+      mistake: null,
       phase: "ROUND_RESULT",
       scores: result.scoringTeam
         ? { ...prev.scores, [result.scoringTeam]: prev.scores[result.scoringTeam] + result.points }
@@ -430,9 +460,14 @@ export function useKllawenHost(gameId: string) {
     update(g => ({ ...g, teamMode }));
   }, [update]);
 
-  const setTargetScore = useCallback((targetScore: number) => {
-    if (!Number.isFinite(targetScore) || targetScore < 1) return;
-    update(g => ({ ...g, targetScore }));
+  const setTotalRounds = useCallback((totalRounds: number) => {
+    if (!Number.isInteger(totalRounds) || totalRounds < 1 || totalRounds > MAX_ROUNDS) return;
+    update(g => ({ ...g, totalRounds }));
+  }, [update]);
+
+  const setMaxTries = useCallback((maxTries: number) => {
+    if (!Number.isInteger(maxTries) || maxTries < 1 || maxTries > MAX_TRIES) return;
+    update(g => ({ ...g, maxTries, triesLeft: maxTries }));
   }, [update]);
 
   const setPlayerTeam = useCallback((playerId: string, team: Team) => {
@@ -463,7 +498,7 @@ export function useKllawenHost(gameId: string) {
     const current = gameRef.current;
     if (current.phase !== "LOBBY") return;
     clearAutoAdvance();
-    const fresh = { scores: { a: 0, b: 0 }, ringHat: null, lifted: [], result: null };
+    const fresh = { scores: { a: 0, b: 0 }, ringHat: null, lifted: [], result: null, triesLeft: current.maxTries, wrongClaims: 0, mistake: null };
     if (playersRef.current.some(p => current.teams[p.playerId])) {
       update(g => ({
         ...g, ...fresh,
@@ -485,7 +520,7 @@ export function useKllawenHost(gameId: string) {
     scheduleHiding();
   }, [update, clearAutoAdvance, scheduleHiding]);
 
-  const hideRandom = useCallback(() => hide(randomHat()), [hide]);
+  const hideRandom = useCallback(() => hide(randomHat(gameRef.current.lifted)), [hide]);
 
   const endGame = useCallback(() => {
     clearAutoAdvance();
@@ -497,7 +532,7 @@ export function useKllawenHost(gameId: string) {
     clearAutoAdvance();
     const g = gameRef.current;
     if (g.phase !== "ROUND_RESULT" || !g.result) return;
-    if (g.scores.a >= g.targetScore || g.scores.b >= g.targetScore) {
+    if (g.round >= g.totalRounds) {
       update(prev => ({ ...prev, phase: "ENDED" }));
       return;
     }
@@ -508,6 +543,9 @@ export function useKllawenHost(gameId: string) {
       round: prev.round + 1,
       ringHat: null,
       lifted: [],
+      triesLeft: prev.maxTries,
+      wrongClaims: 0,
+      mistake: null,
     }));
     scheduleHiding();
   }, [update, clearAutoAdvance, scheduleHiding]);
@@ -516,17 +554,19 @@ export function useKllawenHost(gameId: string) {
   /** Back to the lobby with scores cleared; teams and settings are kept. */
   const resetGame = useCallback(() => {
     clearAutoAdvance();
-    update(g => ({ ...g, phase: "LOBBY", scores: { a: 0, b: 0 }, round: 0, ringHat: null, lifted: [], result: null, toss: null }));
+    update(g => ({ ...g, phase: "LOBBY", scores: { a: 0, b: 0 }, round: 0, ringHat: null, lifted: [], result: null, toss: null, triesLeft: g.maxTries, wrongClaims: 0, mistake: null }));
   }, [update, clearAutoAdvance]);
 
-  const gameOver = game.result != null && (game.scores.a >= game.targetScore || game.scores.b >= game.targetScore);
+  const gameOver = game.result != null && game.round >= game.totalRounds;
 
   return {
     connected, roster, captains, captainVoteCounts, canStart, gameOver,
     phase: game.phase,
     controlMode: game.controlMode, setControlMode,
     teamMode: game.teamMode, setTeamMode,
-    targetScore: game.targetScore, setTargetScore,
+    totalRounds: game.totalRounds, setTotalRounds,
+    maxTries: game.maxTries, setMaxTries,
+    triesLeft: game.triesLeft, wrongClaims: game.wrongClaims, mistake: game.mistake,
     hiderTeam: game.hiderTeam, scores: game.scores, round: game.round,
     lifted: game.lifted, result: game.result,
     toss: publicState.toss, tossStartedAt: game.toss?.startedAt ?? null,

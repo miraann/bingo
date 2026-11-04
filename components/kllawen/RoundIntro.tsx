@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ROUND_INTRO_MS, TEAMS, type RoundResult, type Team } from "@/lib/kllawenChannel";
 import { TEAM_UI } from "@/components/kllawen/kllawenUi";
+import { playCountdownTick } from "@/lib/kllawenSound";
 
 const INTRO_SECONDS = Math.round(ROUND_INTRO_MS / 1000);
 
@@ -58,13 +59,17 @@ function LastRound({ result, scores }: { result: RoundResult; scores: Record<Tea
   );
 }
 
-/** The ticking number and filling bar; counts from mount. */
-export function IntroTimer({ barClass }: { barClass: string }) {
+/** The ticking number and filling bar; counts from mount. With `sound`, each
+ *  second ticks (only the host screen sets it, so phones don't echo the TV). */
+export function IntroTimer({ barClass, sound = false }: { barClass: string; sound?: boolean }) {
   const [left, setLeft] = useState(INTRO_SECONDS);
   useEffect(() => {
     const id = setInterval(() => setLeft(s => Math.max(1, s - 1)), 1000);
     return () => clearInterval(id);
   }, []);
+  useEffect(() => {
+    if (sound) playCountdownTick(left);
+  }, [left, sound]);
 
   return (
     <>
@@ -108,11 +113,13 @@ function Countdown({
   hiderTeam,
   result,
   scores,
+  sound,
 }: {
   round: number;
   hiderTeam: Team;
   result: RoundResult | null;
   scores: Record<Team, number>;
+  sound: boolean;
 }) {
   const ui = TEAM_UI[hiderTeam];
   return (
@@ -141,7 +148,7 @@ function Countdown({
         </p>
       </div>
 
-      <IntroTimer barClass={ui.bar} />
+      <IntroTimer barClass={ui.bar} sound={sound} />
     </motion.div>
   );
 }
@@ -153,6 +160,7 @@ export function RoundIntro({
   hiderTeam,
   result,
   scores,
+  sound = false,
 }: {
   open: boolean;
   round: number;
@@ -160,6 +168,8 @@ export function RoundIntro({
   /** Last round's result; null before round 1. */
   result: RoundResult | null;
   scores: Record<Team, number>;
+  /** Tick each second of the countdown (host screen only). */
+  sound?: boolean;
 }) {
   return (
     <AnimatePresence>
@@ -171,7 +181,7 @@ export function RoundIntro({
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm flex items-center justify-center overflow-y-auto py-6"
         >
-          <Countdown key={round} round={round} hiderTeam={hiderTeam} result={result} scores={scores} />
+          <Countdown key={round} round={round} hiderTeam={hiderTeam} result={result} scores={scores} sound={sound} />
         </motion.div>
       )}
     </AnimatePresence>

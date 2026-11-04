@@ -22,10 +22,10 @@ import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { useHostGame } from "@/hooks/useHostGame";
 import { useBroadcastHostMode } from "@/hooks/useHostMode";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { QRPanel } from "@/components/QRPanel";
+import { HostLobbyShell, StartButton } from "@/components/HostLobby";
 import { PlayerLobbyList } from "@/components/PlayerLobbyList";
 import { WinnerModal } from "@/components/WinnerModal";
-import { GameModeToggle, type HostMode } from "@/components/GameModeSelector";
+import { type HostMode } from "@/components/GameModeSelector";
 import { IconToggle } from "@/components/IconToggle";
 import type { BingoResultPayload } from "@/lib/gameChannel";
 
@@ -261,54 +261,20 @@ export function BingoDashboard({ mode, onModeChange }: { mode: HostMode; onModeC
   const currentGroup = currentNumber != null ? groupOf(currentNumber) : GROUPS[1];
   const history      = calledNumbers.slice(1, 8);
 
-  const ConnectionBadge = (
-    <div className="flex items-center gap-1.5 text-xs text-gray-400">
-      <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-gray-300"}`} />
-      {connected ? "پەیوەستە" : "چاوەڕوانی پەیوەستبوون..."}
-    </div>
-  );
-
   /* ═══════════════════════════════════════════════════════════════════════
      LOBBY PHASE
   ═══════════════════════════════════════════════════════════════════════ */
   if (phase === "LOBBY") {
     return (
-      <div dir="rtl" className="h-dvh bg-white overflow-y-auto">
-        {/* min-h-full inner wrapper: centered when it fits, top stays reachable when it scrolls */}
-        <div className="min-h-full flex flex-col items-center justify-center gap-5 sm:gap-6 px-4 py-6 sm:py-8 w-full max-w-5xl 2xl:max-w-6xl mx-auto">
-          <div className="flex flex-col items-center gap-1">
-            <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-800">داشبۆردی بینگۆ</h1>
-            {ConnectionBadge}
-          </div>
-
-          <div className="flex flex-col md:flex-row sm:landscape:flex-row items-center md:items-start sm:landscape:items-start justify-center gap-5 sm:gap-6 md:gap-8 lg:gap-12 w-full">
-            {gameId && joinUrl && (
-              <div className="flex-shrink-0 md:sticky md:top-8 sm:landscape:sticky sm:landscape:top-4">
-                <QRPanel gameId={gameId} joinUrl={joinUrl} />
-              </div>
-            )}
-
-            <div className="flex flex-col items-center gap-5 sm:gap-6 w-full max-w-md lg:max-w-lg 2xl:max-w-xl lg:self-center">
-              <PlayerLobbyList players={players} />
-
-              <GameModeToggle mode={mode} onChange={onModeChange} />
-
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={startGame}
-                className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-black rounded-2xl px-8 py-3.5 text-lg shadow-[0_6px_24px_rgba(124,58,237,0.45)] cursor-pointer"
-              >
-                دەستپێکردنی یاری
-              </motion.button>
-
-              <button onClick={handleNewGame} className="text-xs text-gray-300 hover:text-gray-500 underline cursor-pointer">
-                دروستکردنی یاریی نوێ
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <HostLobbyShell
+        accent="purple" icon="🎱" title="داشبۆردی بینگۆ"
+        connected={connected} playerCount={players.length}
+        mode={mode} onModeChange={onModeChange}
+        gameId={gameId} joinUrl={joinUrl} onNewGame={handleNewGame}
+      >
+        <PlayerLobbyList players={players} minHeight="min-h-[14rem] lg:min-h-[18rem]" />
+        <StartButton accent="purple" onClick={startGame} label="دەستپێکردنی یاری" />
+      </HostLobbyShell>
     );
   }
 

@@ -9,16 +9,20 @@ export function SeekActionBar({
   hat,
   liftedCount,
   hiderTeam,
+  triesLeft,
+  wrongClaims,
   onAction,
   onCancel,
 }: {
   hat: number;
   liftedCount: number;
   hiderTeam: Team;
+  triesLeft: number;
+  wrongClaims: number;
   onAction: (action: SeekAction) => void;
   onCancel: () => void;
 }) {
-  const { claimPoints, missPoints } = seekStakes(liftedCount);
+  const { claimPoints, missPoints } = seekStakes(liftedCount, wrongClaims);
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -47,7 +51,9 @@ export function SeekActionBar({
         </motion.button>
       </div>
       <span className="text-sm sm:text-base font-black text-red-500 text-center">
-        ئەگەر هەڵە بێت: +{missPoints} خاڵ بۆ {TEAM_UI[hiderTeam].label}
+        {triesLeft > 1
+          ? `ئەگەر هەڵە بێت: هەوڵێک دەڕوات (${triesLeft} هەوڵ ماوە) · گوڵی هەڵە: −1 خاڵ`
+          : `ئەگەر هەڵە بێت: +${missPoints} خاڵ بۆ ${TEAM_UI[hiderTeam].label}`}
       </span>
       <button onClick={onCancel} className="text-xs font-bold text-gray-400 hover:text-gray-600 underline cursor-pointer">
         پاشگەزبوونەوە

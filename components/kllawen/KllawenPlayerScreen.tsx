@@ -12,7 +12,7 @@ import { TeamScoreboard } from "@/components/kllawen/TeamScoreboard";
 import { SeekActionBar } from "@/components/kllawen/SeekActionBar";
 import { RoundIntro } from "@/components/kllawen/RoundIntro";
 import { TossIntro, TossQuestionPanel, TossResultPanel } from "@/components/kllawen/TossQuestion";
-import { TEAM_UI, describeResult, hatNumber } from "@/components/kllawen/kllawenUi";
+import { TEAM_UI, describeMistake, describeResult, hatNumber } from "@/components/kllawen/kllawenUi";
 import { playCorrectSound, playIncorrectSound } from "@/lib/quizSound";
 import { TEAMS, leadingTeam, tallyCaptainVotes, type KllawenRosterEntry, type Team } from "@/lib/kllawenChannel";
 
@@ -111,7 +111,7 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
   // Buzz when it becomes this captain's turn to act.
   const lastTurnRef = useRef("");
   useEffect(() => {
-    const key = myTurn && state ? `${state.round}:${phase}` : "";
+    const key = myTurn && state ? `${state.round}:${phase}:${state.triesLeft}` : "";
     if (key && key !== lastTurnRef.current && typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(80);
     lastTurnRef.current = key;
   }, [myTurn, state, phase]);
@@ -247,7 +247,7 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
           <p className="text-2xl font-black text-gray-600">یەکسان بوون 🤝</p>
         )}
         <TeamScoreboard
-          scores={state.scores} targetScore={state.targetScore} hiderTeam={state.hiderTeam}
+          scores={state.scores} hiderTeam={state.hiderTeam}
           inGame={false} roster={state.roster} captains={state.captains} highlightTeam={myTeam} compact
         />
         <p className="text-sm text-gray-400">چاوەڕێی یاریی داهاتوو بکە</p>
@@ -337,11 +337,11 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
         <span className="font-bold text-gray-700 flex items-center gap-1.5">
           <span className="text-xl">{player.emoji}</span>{player.name}
         </span>
-        <span className="text-xs font-black text-amber-700 bg-amber-50 rounded-full px-3 py-1">گەڕی {state.round}</span>
+        <span className="text-xs font-black text-amber-700 bg-amber-50 rounded-full px-3 py-1">گەڕی {state.round} / {state.totalRounds}</span>
       </div>
 
       <TeamScoreboard
-        scores={state.scores} targetScore={state.targetScore} hiderTeam={state.hiderTeam}
+        scores={state.scores} hiderTeam={state.hiderTeam}
         inGame roster={state.roster} captains={state.captains} highlightTeam={myTeam} compact
       />
 
@@ -349,6 +349,15 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
 
       {message && (
         <p className={`text-base font-black text-center max-w-xs ${myTurn ? "text-amber-700" : "text-gray-600"}`}>{message}</p>
+      )}
+
+      {(phase === "HIDING" || phase === "SEEKING") && state.mistake && (
+        <p className="text-sm font-black text-red-500 text-center max-w-xs">
+          {describeMistake(state.mistake, state.hiderTeam, state.triesLeft)}
+        </p>
+      )}
+      {phase === "SEEKING" && state.maxTries > 1 && (
+        <span className="text-xs font-black text-amber-700">هەوڵ: {state.triesLeft} / {state.maxTries}</span>
       )}
 
       {resultText && (
@@ -362,7 +371,10 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
         size="phone"
         lifted={state.lifted}
         revealRing={result?.ringHat ?? null}
-        wrongHat={result?.outcome === "wrongClaim" ? result.pickedHat : null}
+        wrongHat={
+          result?.outcome === "wrongClaim" ? result.pickedHat
+          : phase === "SEEKING" && state.mistake?.kind === "wrongClaim" ? state.mistake.hat : null
+        }
         markedHat={phase === "SEEKING" ? myHiddenHat : null}
         selected={role === "hider" && phase === "HIDING" ? myVote : selectedHat}
         interactive={myTurn || (role === "hider" && phase === "HIDING")}
@@ -393,6 +405,8 @@ export function KllawenPlayerScreen({ gameId }: { gameId: string }) {
           hat={selectedHat}
           liftedCount={state.lifted.length}
           hiderTeam={state.hiderTeam}
+          triesLeft={state.triesLeft}
+          wrongClaims={state.wrongClaims}
           onAction={action => { seekHat(selectedHat, action); setSelectedHat(null); }}
           onCancel={() => setSelectedHat(null)}
         />

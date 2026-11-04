@@ -6,7 +6,6 @@ import { TEAM_UI } from "@/components/kllawen/kllawenUi";
 
 export function TeamScoreboard({
   scores,
-  targetScore,
   hiderTeam,
   inGame,
   roster,
@@ -15,7 +14,6 @@ export function TeamScoreboard({
   compact = false,
 }: {
   scores: Record<Team, number>;
-  targetScore: number;
   hiderTeam: Team;
   inGame: boolean;
   roster: KllawenRosterEntry[];
@@ -28,7 +26,9 @@ export function TeamScoreboard({
       {TEAMS.map(team => {
         const ui = TEAM_UI[team];
         const captain = roster.find(p => p.playerId === captains[team]);
-        const progress = Math.min(100, (scores[team] / targetScore) * 100);
+        // With no fixed target, the bar shows each team's share of the points so far.
+        const total = scores.a + scores.b;
+        const progress = total > 0 ? (scores[team] / total) * 100 : 0;
         return (
           <div
             key={team}
@@ -55,7 +55,6 @@ export function TeamScoreboard({
               >
                 {scores[team]}
               </motion.span>
-              <span className="text-xs sm:text-sm font-bold text-gray-400">/ {targetScore}</span>
             </div>
             <div className="h-1.5 sm:h-2 bg-white rounded-full overflow-hidden mt-1" dir="ltr">
               <motion.div animate={{ width: `${progress}%` }} className={`h-full rounded-full ${ui.bar}`} />
