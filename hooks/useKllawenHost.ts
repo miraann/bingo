@@ -69,6 +69,9 @@ interface HostGame {
   captainPicks: Record<Team, string | null>;
   /** voter playerId → teammate they want as captain. */
   captainVotes: Record<string, string>;
+  /** Captains frozen when the game starts, so a reconnect (which re-sends a newer
+   *  `joinedAt`) can't hand the role to a teammate. Cleared back in the lobby. */
+  lockedCaptains: Record<Team, string | null>;
   toss: HostToss | null;
 }
 
@@ -90,6 +93,7 @@ const INITIAL_GAME: HostGame = {
   teams: {},
   captainPicks: { a: null, b: null },
   captainVotes: {},
+  lockedCaptains: { a: null, b: null },
   toss: null,
 };
 
@@ -160,16 +164,19 @@ function buildRoster(players: KllawenPlayerPresence[], teams: Record<string, Tea
   return players.map(p => ({ ...p, team: teams[p.playerId] ?? null }));
 }
 
-/** Host's pick wins; otherwise the most-voted teammate (earliest joiner on a
- *  tie); with no votes, the team's first joiner. */
+/** In game, the captain locked at the start (while connected). Otherwise the
+ *  host's pick wins; then the most-voted teammate (earliest joiner on a tie);
+ *  with no votes, the team's first joiner. */
 function computeCaptains(
   roster: KllawenRosterEntry[],
   picks: Record<Team, string | null>,
   votes: Record<string, string>,
+  locked: Record<Team, string | null>,
 ): Record<Team, string | null> {
   const counts = tallyCaptainVotes(roster, votes);
   const captainOf = (team: Team) => {
     const members = roster.filter(p => p.team === team);
+    if (locked[team] && members.some(p => p.playerId === locked[team])) return locked[team];
     if (picks[team] && members.some(p => p.playerId === picks[team])) return picks[team];
     let best = members[0] ?? null;
     for (const p of members) if ((counts[p.playerId] ?? 0) > (counts[best!.playerId] ?? 0)) best = p;
@@ -211,8 +218,8 @@ export function useKllawenHost(gameId: string) {
 
   const roster = useMemo(() => buildRoster(players, game.teams), [players, game.teams]);
   const captains = useMemo(
-    () => computeCaptains(roster, game.captainPicks, game.captainVotes),
-    [roster, game.captainPicks, game.captainVotes],
+    () => computeCaptains(roster, game.captainPicks, game.captainVotes, game.lockedCaptains),
+    [roster, game.captainPicks, game.captainVotes, game.lockedCaptains],
   );
   const captainVoteCounts = useMemo(() => tallyCaptainVotes(roster, game.captainVotes), [roster, game.captainVotes]);
   const captainsRef = useRef(captains);
@@ -328,7 +335,7 @@ export function useKllawenHost(gameId: string) {
 
   const seek = useCallback((hat: number, action: SeekAction) => {
     const g = gameRef.current;
-    if (g.phase !== "SEEKING" || g.ringHat == null || hat < 0 || hat >= HAT_COUNT || g.lifted.includes(hat)) return;
+    if (g.phase !== "SEEKING" || g.ringHat == null || !Number.isInteger(hat) || hat < 0 || hat >= HAT_COUNT || g.lifted.includes(hat)) return;
     const resolution = resolveSeek(g.ringHat, g.lifted, hat, action, g.hiderTeam, g.triesLeft, g.wrongClaims);
     if (resolution.kind === "continue") {
       const { mistake = null } = resolution;
@@ -493,7 +500,10 @@ export function useKllawenHost(gameId: string) {
     const current = gameRef.current;
     if (current.phase !== "LOBBY") return;
     clearAutoAdvance();
-    const fresh = { scores: { a: 0, b: 0 }, ringHat: null, lifted: [], result: null, triesLeft: current.maxTries, wrongClaims: 0, mistake: null };
+    const fresh = {
+      scores: { a: 0, b: 0 }, ringHat: null, lifted: [], result: null, triesLeft: current.maxTries, wrongClaims: 0, mistake: null,
+      lockedCaptains: captainsRef.current,
+    };
     if (playersRef.current.some(p => current.teams[p.playerId])) {
       update(g => ({
         ...g, ...fresh,
@@ -549,7 +559,7 @@ export function useKllawenHost(gameId: string) {
   /** Back to the lobby with scores cleared; teams and settings are kept. */
   const resetGame = useCallback(() => {
     clearAutoAdvance();
-    update(g => ({ ...g, phase: "LOBBY", scores: { a: 0, b: 0 }, round: 0, ringHat: null, lifted: [], result: null, toss: null, triesLeft: g.maxTries, wrongClaims: 0, mistake: null }));
+    update(g => ({ ...g, phase: "LOBBY", scores: { a: 0, b: 0 }, round: 0, ringHat: null, lifted: [], result: null, toss: null, triesLeft: g.maxTries, wrongClaims: 0, mistake: null, lockedCaptains: { a: null, b: null } }));
   }, [update, clearAutoAdvance]);
 
   const gameOver = game.result != null && game.round >= game.totalRounds;
