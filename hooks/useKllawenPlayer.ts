@@ -46,6 +46,22 @@ function saveHidden(gameId: string, hidden: HiddenHat) {
   } catch {}
 }
 
+/** When this phone first showed a toss question, so a refresh mid-question
+ *  keeps counting from then instead of restarting the player's clock. */
+function tossShownStorageKey(gameId: string) {
+  return `kllawen:tossShown:${gameId}`;
+}
+
+function loadOrStampTossShownAt(gameId: string, tossKey: string): number {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(tossShownStorageKey(gameId)) ?? "null") as { key: string; at: number } | null;
+    if (saved?.key === tossKey && Number.isFinite(saved.at) && saved.at <= Date.now()) return saved.at;
+  } catch {}
+  const at = Date.now();
+  try { window.localStorage.setItem(tossShownStorageKey(gameId), JSON.stringify({ key: tossKey, at })); } catch {}
+  return at;
+}
+
 export interface HideVote {
   name: string;
   emoji: string;
@@ -79,10 +95,10 @@ export function useKllawenPlayer(gameId: string) {
    *  measured from here so the host's clock never has to match ours. */
   const [tossShownAt, setTossShownAt] = useState<number | null>(null);
   const [tossAnswer, setTossAnswer] = useState<number | null>(null);
-  const tossOpenId = state?.phase === "TOSS_QUESTION" ? state.toss?.question.id ?? null : null;
-  const tossQuestionId = state?.toss?.question.id ?? null;
-  useEffect(() => { if (tossOpenId != null) setTossShownAt(Date.now()); }, [tossOpenId]);
-  useEffect(() => { setTossAnswer(null); }, [tossQuestionId]);
+  const tossKey = state?.toss ? `${state.toss.question.id}:${state.toss.startedAt}` : null;
+  const tossOpenKey = state?.phase === "TOSS_QUESTION" ? tossKey : null;
+  useEffect(() => { if (tossOpenKey != null) setTossShownAt(loadOrStampTossShownAt(gameId, tossOpenKey)); }, [gameId, tossOpenKey]);
+  useEffect(() => { setTossAnswer(null); }, [tossKey]);
 
   useEffect(() => {
     if (!gameId) return;

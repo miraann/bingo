@@ -197,6 +197,9 @@ export interface TossAnswer {
 
 export interface KllawenTossPublic {
   question: PublicQuizQuestion;
+  /** Host clock time the question opened. Only used to tell tosses apart
+   *  (question ids repeat across topics) — phones never compare it to their clock. */
+  startedAt: number;
   answeredIds: string[];
   /** The rest stays hidden until TOSS_RESULT. */
   correctAnswer: number | null;

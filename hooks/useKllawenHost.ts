@@ -144,6 +144,7 @@ function publicToss(phase: KllawenPhase, toss: HostToss | null): KllawenTossPubl
   const revealed = phase === "TOSS_RESULT";
   return {
     question: toPublicQuestion(toss.question),
+    startedAt: toss.startedAt,
     answeredIds: Object.keys(toss.answers),
     correctAnswer: revealed ? toss.question.correctAnswer : null,
     answers: revealed ? Object.values(toss.answers).sort((a, b) => a.elapsedMs - b.elapsedMs) : [],
