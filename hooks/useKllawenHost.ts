@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { listQuizTopics, loadQuizQuestions, toPublicQuestion, type QuizQuestion } from "@/lib/quizLoader";
+import { loadOrCreateKeyPair, openSealed, type KeyPairHandle } from "@/lib/sealedBox";
 import {
   DEFAULT_MAX_TRIES,
   DEFAULT_TOTAL_ROUNDS,
@@ -201,6 +202,23 @@ export function useKllawenHost(gameId: string) {
   const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedForRef = useRef("");
 
+  // The key the hiding captain seals the ring's hat with. Kept per game, so a
+  // reloaded host can still open a hide sent just before the reload.
+  const [hostKey, setHostKey] = useState<string | null>(null);
+  const hostKeyRef = useRef<KeyPairHandle | null>(null);
+  useEffect(() => {
+    if (!gameId) return;
+    let cancelled = false;
+    hostKeyRef.current = null;
+    setHostKey(null);
+    loadOrCreateKeyPair(`kllawen:hostKey:${gameId}`).then(key => {
+      if (cancelled) return;
+      hostKeyRef.current = key;
+      setHostKey(key?.publicKey ?? null);
+    });
+    return () => { cancelled = true; };
+  }, [gameId]);
+
   const update = useCallback((fn: (g: HostGame) => HostGame) => {
     const next = fn(gameRef.current);
     if (next === gameRef.current) return;
@@ -244,7 +262,8 @@ export function useKllawenHost(gameId: string) {
     captains,
     captainVotes: game.captainVotes,
     toss: publicToss(game.phase, game.toss),
-  }), [game, roster, captains]);
+    hostKey,
+  }), [game, roster, captains, hostKey]);
   const publicStateRef = useRef(publicState);
   publicStateRef.current = publicState;
 
@@ -405,13 +424,23 @@ export function useKllawenHost(gameId: string) {
       }));
     });
 
-    channel.on("broadcast", { event: KLLAWEN_EVENTS.hideRing }, ({ payload }: { payload: HideRingPayload }) => {
-      const g = gameRef.current;
+    channel.on("broadcast", { event: KLLAWEN_EVENTS.hideRing }, async ({ payload }: { payload: HideRingPayload }) => {
       // Hiding is always the hiding captain's call, from their phone — even in
       // screen mode, so the ring's hat never shows on the TV.
-      if (payload.round !== g.round) return;
-      if (payload.playerId !== captainsRef.current[g.hiderTeam]) return;
-      hide(payload.hat);
+      const fromCaptain = () => {
+        const g = gameRef.current;
+        return payload.round === g.round && payload.playerId === captainsRef.current[g.hiderTeam];
+      };
+      if (!fromCaptain()) return;
+      let hat = payload.hat;
+      if (payload.sealed) {
+        const key = hostKeyRef.current;
+        const opened = key ? await openSealed<{ hat: number; round: number }>(payload.sealed, "host", key.privateKey) : null;
+        // The round is sealed in too, so an old sealed hide can't be replayed into a later round.
+        if (!opened || opened.round !== payload.round || !fromCaptain()) return;
+        hat = opened.hat;
+      }
+      if (typeof hat === "number") hide(hat);
     });
 
     channel.on("broadcast", { event: KLLAWEN_EVENTS.tossAnswer }, ({ payload }: { payload: TossAnswerPayload }) => {

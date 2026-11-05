@@ -2,6 +2,7 @@
  *  the other team tries to find it by clearing the empty ones. */
 
 import type { PublicQuizQuestion } from "./quizLoader";
+import type { SealedBox } from "./sealedBox";
 
 export const HAT_COUNT = 10;
 /** How many rounds a game lasts; the team with more points after the last one wins. */
@@ -152,6 +153,8 @@ export interface KllawenPlayerPresence {
   name: string;
   emoji: string;
   joinedAt: number;
+  /** This phone's public key, so teammates can seal hide votes for it. */
+  pubKey?: string;
 }
 
 export interface KllawenRosterEntry extends KllawenPlayerPresence {
@@ -183,6 +186,9 @@ export interface KllawenPublicState {
   captainVotes: Record<string, string>;
   /** The opening toss question; null once the game is past it (or skipped it). */
   toss: KllawenTossPublic | null;
+  /** The host's public key: the hiding captain seals the ring's hat with it so
+   *  only the host can read it. Null where the host has no Web Crypto. */
+  hostKey: string | null;
 }
 
 export interface TossAnswer {
@@ -238,21 +244,26 @@ export interface ChooseTeamPayload {
   team: Team;
 }
 
+/** Every phone hears every broadcast, so the hat travels sealed for the host
+ *  (`{ hat, round }` inside). Plain `hat` only where sealing isn't possible. */
 export interface HideRingPayload {
   playerId: string;
   round: number;
-  hat: number;
+  hat?: number;
+  sealed?: SealedBox;
 }
 
-/** Hider teammate → their captain: "hide it under this hat". The host ignores
- *  it; only the captain's phone (same team, same round) tallies the votes. */
+/** Hider teammate → their team: "hide it under this hat". The host ignores
+ *  it; hiding-team phones (same team, same round) tally the votes. The hat is
+ *  sealed (`{ hat }` inside) for each teammate, so the seekers can't read it. */
 export interface HideVotePayload {
   playerId: string;
   name: string;
   emoji: string;
   team: Team;
   round: number;
-  hat: number;
+  hat?: number;
+  sealed?: SealedBox;
 }
 
 export interface TossAnswerPayload {

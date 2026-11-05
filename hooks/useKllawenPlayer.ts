@@ -6,11 +6,13 @@ import { supabase } from "@/lib/supabaseClient";
 import { generatePlayerId } from "@/lib/id";
 import { loadPlayerProfile, savePlayerProfile, type PlayerProfile } from "@/lib/playerProfile";
 import { useChannelReconnect } from "@/hooks/useChannelReconnect";
+import { loadOrCreateKeyPair, openSealed, seal, type KeyPairHandle } from "@/lib/sealedBox";
 import {
   KLLAWEN_EVENTS,
   kllawenChannelName,
   otherTeam,
   type CaptainVotePayload,
+  type HideRingPayload,
   type HideVotePayload,
   type KllawenPublicState,
   type SeekAction,
@@ -87,6 +89,36 @@ export function useKllawenPlayer(gameId: string) {
   useEffect(() => { playerRef.current = player; }, [player]);
   useEffect(() => { stateRef.current = state; }, [state]);
   const myTeamRef = useRef<Team | null>(null);
+
+  // This phone's key pair: teammates seal their hide votes with the public half.
+  const keyRef = useRef<KeyPairHandle | null>(null);
+  const [pubKey, setPubKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!gameId) return;
+    let cancelled = false;
+    loadOrCreateKeyPair(`kllawen:key:${gameId}`).then(key => {
+      if (cancelled) return;
+      keyRef.current = key;
+      setPubKey(key?.publicKey ?? null);
+    });
+    return () => { cancelled = true; };
+  }, [gameId]);
+
+  /** Announces this player (and their public key) on the channel. `joinedAt`
+   *  stays the same across reconnects, so a dropped phone keeps its place. */
+  const joinedAtRef = useRef(0);
+  const track = useCallback(() => {
+    const p = playerRef.current;
+    if (!p) return;
+    joinedAtRef.current ||= Date.now();
+    channelRef.current?.track({
+      playerId: p.playerId, name: p.name, emoji: p.emoji, joinedAt: joinedAtRef.current,
+      ...(keyRef.current ? { pubKey: keyRef.current.publicKey } : {}),
+    });
+  }, []);
+  // The key may finish loading after we've joined; re-announce with it.
+  useEffect(() => { if (pubKey) track(); }, [pubKey, track]);
+
   // A re-hide after a wrong پوچ (one try fewer) starts a fresh vote.
   const voteRound = state?.phase === "HIDING" ? `${state.round}:${state.triesLeft}` : null;
   useEffect(() => { setVotes({}); }, [voteRound]);
@@ -113,10 +145,23 @@ export function useKllawenPlayer(gameId: string) {
       setState(payload);
     });
 
-    channel.on("broadcast", { event: KLLAWEN_EVENTS.hideVote }, ({ payload }: { payload: HideVotePayload }) => {
-      const s = stateRef.current;
-      if (!s || s.phase !== "HIDING" || payload.round !== s.round || payload.team !== myTeamRef.current) return;
-      setVotes(prev => ({ ...prev, [payload.playerId]: { name: payload.name, emoji: payload.emoji, hat: payload.hat } }));
+    channel.on("broadcast", { event: KLLAWEN_EVENTS.hideVote }, async ({ payload }: { payload: HideVotePayload }) => {
+      const forMyTeamNow = () => {
+        const s = stateRef.current;
+        return !!s && s.phase === "HIDING" && payload.round === s.round && payload.team === myTeamRef.current;
+      };
+      if (!forMyTeamNow()) return;
+      let hat = payload.hat;
+      if (payload.sealed) {
+        const me = playerRef.current?.playerId;
+        const key = keyRef.current;
+        const opened = me && key ? await openSealed<{ hat: number }>(payload.sealed, me, key.privateKey) : null;
+        if (!opened || !forMyTeamNow()) return;
+        hat = opened.hat;
+      }
+      if (typeof hat !== "number" || !Number.isInteger(hat)) return;
+      const voted = hat;
+      setVotes(prev => ({ ...prev, [payload.playerId]: { name: payload.name, emoji: payload.emoji, hat: voted } }));
     });
 
     let disposed = false;
@@ -125,26 +170,22 @@ export function useKllawenPlayer(gameId: string) {
       onStatus(status);
       if (status === "SUBSCRIBED") {
         channel.send({ type: "broadcast", event: KLLAWEN_EVENTS.stateSyncRequest, payload: {} });
-        if (playerRef.current) {
-          channel.track({
-            playerId: playerRef.current.playerId, name: playerRef.current.name,
-            emoji: playerRef.current.emoji, joinedAt: Date.now(),
-          });
-        }
+        track();
       }
     });
 
     return () => { disposed = true; supabase.removeChannel(channel); channelRef.current = null; };
-  }, [gameId, attempt, onStatus]);
+  }, [gameId, attempt, onStatus, track]);
 
   const join = useCallback((name: string, emoji: string) => {
     const playerId = initialPlayer.current?.playerId ?? generatePlayerId();
     const newPlayer: PlayerProfile = { playerId, name: name.trim(), emoji };
     initialPlayer.current = newPlayer;
     savePlayerProfile(gameId, newPlayer);
+    playerRef.current = newPlayer;
     setPlayer(newPlayer);
-    channelRef.current?.track({ playerId, name: newPlayer.name, emoji, joinedAt: Date.now() });
-  }, [gameId]);
+    track();
+  }, [gameId, track]);
 
   const chooseTeam = useCallback((team: Team) => {
     if (!playerRef.current) return;
@@ -164,31 +205,36 @@ export function useKllawenPlayer(gameId: string) {
     });
   }, []);
 
-  const hideRing = useCallback((hat: number) => {
+  /** Sealed so only the host can read the hat — every phone hears this broadcast. */
+  const hideRing = useCallback(async (hat: number) => {
     const s = stateRef.current;
-    if (!playerRef.current || !s || s.phase !== "HIDING") return;
+    const p = playerRef.current;
+    if (!p || !s || s.phase !== "HIDING") return;
     const next = { round: s.round, hat };
     setHidden(next);
     saveHidden(gameId, next);
-    channelRef.current?.send({
-      type: "broadcast",
-      event: KLLAWEN_EVENTS.hideRing,
-      payload: { playerId: playerRef.current.playerId, round: s.round, hat },
-    });
+    const sealed = s.hostKey ? await seal({ host: s.hostKey }, { hat, round: s.round }) : null;
+    const payload: HideRingPayload = sealed
+      ? { playerId: p.playerId, round: s.round, sealed }
+      : { playerId: p.playerId, round: s.round, hat };
+    channelRef.current?.send({ type: "broadcast", event: KLLAWEN_EVENTS.hideRing, payload });
   }, [gameId]);
 
-  /** A hider teammate suggests a hat; only their own captain's phone counts it. */
-  const voteHide = useCallback((hat: number) => {
+  /** A hider teammate suggests a hat, sealed for each teammate so the seekers
+   *  can't read it. Plain only if the captain has no key to open it with. */
+  const voteHide = useCallback(async (hat: number) => {
     const s = stateRef.current;
     const p = playerRef.current;
     const team = myTeamRef.current;
     if (!p || !s || !team || s.phase !== "HIDING" || team !== s.hiderTeam) return;
     setVotes(prev => ({ ...prev, [p.playerId]: { name: p.name, emoji: p.emoji, hat } }));
-    channelRef.current?.send({
-      type: "broadcast",
-      event: KLLAWEN_EVENTS.hideVote,
-      payload: { playerId: p.playerId, name: p.name, emoji: p.emoji, team, round: s.round, hat } satisfies HideVotePayload,
-    });
+    const recipients: Record<string, string> = {};
+    for (const x of s.roster) if (x.team === team && x.playerId !== p.playerId && x.pubKey) recipients[x.playerId] = x.pubKey;
+    const captainId = s.captains[team];
+    const sealed = captainId && recipients[captainId] ? await seal(recipients, { hat }) : null;
+    const base = { playerId: p.playerId, name: p.name, emoji: p.emoji, team, round: s.round };
+    const payload: HideVotePayload = sealed ? { ...base, sealed } : { ...base, hat };
+    channelRef.current?.send({ type: "broadcast", event: KLLAWEN_EVENTS.hideVote, payload });
   }, []);
 
   const answerToss = useCallback((answer: number) => {
