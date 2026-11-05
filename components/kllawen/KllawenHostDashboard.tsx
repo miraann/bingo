@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Music, Music2, Volume2, VolumeX, RotateCcw, Flag, Smartphone, Monitor, BookOpen, Shuffle, Crown, ArrowLeftRight, Dices, Hand, Users, Vote } from "lucide-react";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
@@ -15,6 +15,7 @@ import { SeekActionBar } from "@/components/kllawen/SeekActionBar";
 import { KllawenRulesModal } from "@/components/kllawen/KllawenRulesModal";
 import { KllawenWinnerModal } from "@/components/kllawen/KllawenWinnerModal";
 import { RoundIntro } from "@/components/kllawen/RoundIntro";
+import { ConfirmModal } from "@/components/kllawen/ConfirmModal";
 import { TossIntro, TossQuestionPanel, TossResultPanel } from "@/components/kllawen/TossQuestion";
 import { TEAM_UI, describeMistake, describeResult, seekStakes } from "@/components/kllawen/kllawenUi";
 import { playCorrectSound } from "@/lib/quizSound";
@@ -99,6 +100,10 @@ export function KllawenHostDashboard({
   const [musicOn, setMusicOn] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
   const [showRules, setShowRules] = useState(false);
+  // ڕیست and کۆتایی throw the game away, so they ask first.
+  const [confirm, setConfirm] = useState<"reset" | "end" | null>(null);
+  const closeConfirm = useCallback(() => setConfirm(null), []);
+  useEffect(() => { if (phase === "LOBBY" || phase === "ENDED") setConfirm(null); }, [phase]);
   const [selectedHat, setSelectedHat] = useState<number | null>(null);
   // The custom field stays empty while a preset is picked, so the value isn't shown twice.
   const [roundsInput, setRoundsInput] = useState(isPresetRounds(totalRounds) ? "" : String(totalRounds));
@@ -419,9 +424,9 @@ export function KllawenHostDashboard({
 
         <div className="flex flex-col items-center justify-center gap-1.5 flex-shrink-0">
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <ToolButton icon={RotateCcw} label="ڕیست" onClick={resetGame} hoverClass="hover:bg-red-50 hover:text-red-500" />
+            <ToolButton icon={RotateCcw} label="ڕیست" onClick={() => setConfirm("reset")} hoverClass="hover:bg-red-50 hover:text-red-500" />
             {phase !== "ENDED" && (
-              <ToolButton icon={Flag} label="کۆتایی" onClick={endGame} hoverClass="hover:bg-amber-50 hover:text-amber-500" />
+              <ToolButton icon={Flag} label="کۆتایی" onClick={() => setConfirm("end")} hoverClass="hover:bg-amber-50 hover:text-amber-500" />
             )}
             <ToolButton
               icon={musicOn ? Music2 : Music} label="میوزیك" active={musicOn}
@@ -582,6 +587,24 @@ export function KllawenHostDashboard({
       <TossIntro open={phase === "TOSS_INTRO"} sound={soundOn} />
       <RoundIntro open={phase === "ROUND_INTRO"} round={round} hiderTeam={hiderTeam} result={result} scores={scores} sound={soundOn} />
       <KllawenWinnerModal open={phase === "ENDED"} scores={scores} onNewGame={resetGame} />
+      <ConfirmModal
+        open={confirm === "reset"}
+        icon="🔄"
+        title="یاری لە سەرەتاوە دەست پێبکاتەوە؟"
+        detail="هەموو خاڵەکان دەسڕدرێنەوە و هەمووان دەگەڕێنەوە بۆ پێش دەستپێکردن. تیپەکان و ڕێکخستنەکان وەک خۆیان دەمێننەوە."
+        confirmLabel="بەڵێ، ڕیست بکە"
+        onConfirm={() => { setConfirm(null); resetGame(); }}
+        onCancel={closeConfirm}
+      />
+      <ConfirmModal
+        open={confirm === "end"}
+        icon="🏁"
+        title="یاری ئێستا کۆتایی پێبێت؟"
+        detail={`گەڕەکانی ماوە یاری ناکرێن و ئەو تیپەی خاڵی زیاترە دەیباتەوە (${TEAM_UI.a.label} ${scores.a} — ${scores.b} ${TEAM_UI.b.label}).`}
+        confirmLabel="بەڵێ، کۆتایی بێنە"
+        onConfirm={() => { setConfirm(null); endGame(); }}
+        onCancel={closeConfirm}
+      />
       {RulesModal}
     </div>
   );
