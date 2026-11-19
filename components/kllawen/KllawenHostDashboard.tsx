@@ -148,7 +148,7 @@ export function KllawenHostDashboard({
   // One music engine scores the page. 🎵 plays the main track (bg-music.mp3)
   // in every phase; it holds back for a moment at a round's reveal and at the
   // victory so those are heard, then picks up where it stopped. With 🎵 off,
-  // 🔊 plays suspense cues while the ring is hidden and sought.
+  // 🔊 plays a suspense cue while the ring is hidden; seeking has no music.
   const musicPhaseRef = useRef({ phase, since: 0 });
   useEffect(() => {
     if (musicPhaseRef.current.phase !== phase) musicPhaseRef.current = { phase, since: Date.now() };
@@ -162,10 +162,8 @@ export function KllawenHostDashboard({
       return () => clearTimeout(id);
     }
     if (soundOn && phase === "HIDING") { kllawenMusic.start("hiding"); return; }
-    if (soundOn && phase === "SEEKING") { kllawenMusic.start("seeking"); return; }
     kllawenMusic.stop(phase === "ROUND_RESULT" ? 0.15 : 0.6);
   }, [phase, soundOn, musicOn]);
-  useEffect(() => kllawenMusic.setIntensity(lifted.length), [lifted.length]);
   useEffect(() => { warmUpKllawenAudio(); return () => kllawenMusic.stop(); }, []);
 
   const pickHat = (hat: number) => {

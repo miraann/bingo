@@ -187,3 +187,35 @@ Passwords, database connection strings and API keys have been removed.
 - **Request:** Push all chats and files to GitHub.
 - **Done:** Pulled the Supabase keep-alive workflow from GitHub, committed all
   changes and this chat history to `main`, and pushed.
+
+### Players always visible in the quiz lobby
+- **Request:** Do the same for the quiz lobby: move the players to the top.
+- **Done:** The players card is now first, beside the QR code. The settings (topic,
+  question count, hints) fold into one bar showing the chosen topic, count and
+  hints, with the same «گۆڕین / داخستن» button. While no topic is picked, the
+  settings stay open so the topics can be seen, and they stay open once one is
+  picked. The folding card is now shared by the quiz and Kllawen lobbies
+  (`FoldingSettingsCard` in `HostLobby.tsx`). Bingo already showed its players
+  first. Checked at 1280×720 with 5 players: no scrolling needed.
+- **Found, not fixed yet:** the quiz host loses its topic, scores and current
+  question when the TV page is refreshed. It reads its saved game before it knows
+  the game code, then saves an empty lobby over it.
+
+### List of Kllawen music and sounds
+- **Request:** List all the music on the Kllawen page.
+- **Done:** Listed 3 music tracks (the main track `bg-music.mp3`, the hiding cue,
+  the seeking cue), 9 TV sound effects (hat select, empty hat `ring.mp3`, ring
+  found, cut, fail, countdown tick, countdown go, Kurdish victory, win cheer
+  `win-cheer.wav`) and the phones' correct and incorrect beeps. The recorded files
+  have no title tags, so the main track has no song name beyond its file name.
+
+### Remove the seeking music
+- **Request:** Remove only the seeking music.
+- **Done:** Removed the shimshal lawik and racing heartbeat that played while hats
+  were lifted (🔊 on, 🎵 off). Seeking now has no music; its sound effects still
+  play. The hiding cue, the 🎵 main track and all sound effects are unchanged.
+  Checked on the TV screen: no music starts during seeking, and no errors.
+
+### Saving to GitHub
+- **Request:** Push all chats and files to GitHub.
+- **Done:** Committed all changes and this chat history to `main` and pushed.

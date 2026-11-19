@@ -22,8 +22,7 @@
                        per second that climbs and gathers drums, then a hit
    • kllawenMusic    — the page's music: the main track (public/audio/
                        bg-music.mp3) on 🎵; with 🎵 off, a heartbeat cue while
-                       the ring is hidden and a shimshal over a racing
-                       heartbeat while seeking
+                       the ring is hidden (seeking has no music of its own)
 ───────────────────────────────────────────────────────────────────────────── */
 "use client";
 
@@ -713,7 +712,7 @@ export function playKurdishVictory() {
 
 /* ── Adaptive music ──────────────────────────────────────────────────── */
 
-export type MusicMode = "main" | "hiding" | "seeking";
+export type MusicMode = "main" | "hiding";
 
 /** Melody events, one per eighth note: scale step, null = rest, "~" = hold. */
 type Ev = number | null | "~";
@@ -721,22 +720,6 @@ type Ev = number | null | "~";
 const GOVEND_A: Ev[] = [4, 3, 4, 5, 4, "~", 3, 2, 3, 2, 3, 4, 2, 1, 0, null];
 // Higher answer phrase once the tension is up.
 const GOVEND_B: Ev[] = [7, 6, 5, 6, 7, "~", 5, 4, 5, 4, 3, 4, 2, 1, 0, null];
-// Lawik — a slow, free shepherd's song for the seeking background. Starts high,
-// lingers on the quarter-tone E½♭ (step 1) and sinks home to D, with rests to breathe.
-const LAWIK: Ev[] = [
-  5, "~", "~", 4, "~", 3, 4, "~", "~", "~", 3, 2, "~", 1, "~", "~", 0, "~", "~", "~", null, null,
-  2, 3, 4, "~", "~", 5, 6, "~", 5, 4, "~", "~", 3, "~", 4, 3, 2, "~", "~", null,
-  1, 2, 1, "~", "~", 0, "~", "~", "~", "~", null, null, null,
-];
-// The same song a few steps higher, once most of the hats are gone.
-const LAWIK_HIGH: Ev[] = [
-  7, "~", "~", 6, "~", 5, 6, "~", "~", "~", 5, 4, "~", 3, "~", "~", 2, "~", "~", "~", null, null,
-  4, 5, 6, "~", "~", 7, 8, "~", 7, 6, "~", "~", 5, "~", 6, 5, 4, "~", "~", null,
-  3, 4, 3, "~", "~", 2, "~", "~", "~", "~", null, null, null,
-];
-/** The shimshal keeps its own calm pace while the heart races underneath. */
-const LAWIK_EIGHTH = 60 / 66 / 2;
-
 /** Plays one melody event on the shimshal, reading ahead for note length,
  *  phrase ends and breaths, with loose timing and varied ornaments.
  *  `sob`: phrase ends sag in pitch (lawik) instead of just tapering (dance). */
@@ -783,8 +766,7 @@ const SCHEDULE_EVERY_MS = 50;
                Bingo and the quiz play
      hiding  — while the ring is hidden (🔊, 🎵 off): a slow heartbeat over
                a low bass note
-     seeking — while hats are lifted (🔊, 🎵 off): a shimshal lawik in the
-               background over heartbeat pulses that race with every empty hat */
+   Seeking has no music of its own; only the sound effects play then. */
 
 /** A few milliseconds of human timing. */
 const human = (t: number, ms = 9) => t + Math.random() * ms / 1000;
@@ -869,8 +851,6 @@ function heartPulse(t: number, vol: number, bpm: number, dest: AudioNode) {
 /** Bass under the hiding cue, one note per bar: D – B♭ – G – A. */
 const HIDE_BASS = [38, 34, 43, 33];
 const HIDING_BPM = 72;
-/** Heart rate of the seeking cue: already quick at the first hat, racing at the last. */
-const seekBpm = (lvl: number) => 84 + lvl * 10;
 
 /* ── Main track (public/audio/bg-music.mp3) ── */
 const MAIN_URL = "/audio/bg-music.mp3";
@@ -947,11 +927,7 @@ const mainTrack = new MainTrack();
 
 class Music {
   private mode: MusicMode | null = null;
-  private intensity = 0;
   private bus: GainNode | null = null;
-  private flute: Shimshal | null = null;
-  private fluteNext = 0;
-  private fluteStep = 0;
   private ducker: GainNode | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private nextTime = 0;
@@ -968,14 +944,12 @@ class Music {
     const c = a.ctx, t = c.currentTime;
     this.bus = c.createGain();
     this.bus.gain.setValueAtTime(0.0001, t);
-    this.bus.gain.exponentialRampToValueAtTime(mode === "hiding" ? 0.7 : 0.62, t + 1);
+    this.bus.gain.exponentialRampToValueAtTime(0.7, t + 1);
     this.ducker = c.createGain();
     this.bus.connect(this.ducker);
     this.ducker.connect(a.master);
 
     this.nextTime = t + 0.12;
-    this.fluteNext = t + 0.3;
-    this.fluteStep = 0;
     this.timer = setInterval(() => this.schedule(), SCHEDULE_EVERY_MS);
     this.schedule();
   }
@@ -992,14 +966,8 @@ class Music {
     g.linearRampToValueAtTime(1, t + seconds);
   }
 
-  /** 0..9 — empty hats so far. Raises the heart rate of the seeking cue. */
-  setIntensity(n: number) {
-    this.intensity = Math.max(0, Math.min(9, n));
-  }
-
   private sixteenth() {
-    const bpm = this.mode === "seeking" ? seekBpm(this.intensity) : HIDING_BPM;
-    return 60 / bpm / 4;
+    return 60 / HIDING_BPM / 4;
   }
 
   private schedule() {
@@ -1016,30 +984,10 @@ class Music {
       this.nextTime += this.sixteenth();
       this.step++;
     }
-    if (this.mode === "seeking") this.scheduleShimshal(now);
-  }
-
-  /** Seeking background: a shimshal lawik on its own slow clock. */
-  private scheduleShimshal(now: number) {
-    while (this.fluteNext < now) {
-      this.fluteNext += LAWIK_EIGHTH;
-      this.fluteStep++;
-    }
-    while (this.fluteNext < now + LOOKAHEAD) {
-      // Made as soon as the shimshal model has loaded.
-      if (!this.flute?.live && shimshalReady && this.bus) this.flute = new Shimshal(this.fluteNext, deg(5, D5), this.bus);
-      if (this.flute) {
-        const lvl = this.intensity;
-        playFlute(this.flute, this.fluteNext, lvl >= 6 ? LAWIK_HIGH : LAWIK, this.fluteStep, LAWIK_EIGHTH, 0.07 + lvl * 0.003, true, 0.045, true);
-      }
-      this.fluteNext += LAWIK_EIGHTH;
-      this.fluteStep++;
-    }
   }
 
   private playStep(t: number, s: number) {
     if (this.mode === "hiding") this.hiding(t, s);
-    else if (this.mode === "seeking") this.seeking(t, s);
   }
 
   /** While the ring is hidden: a slow heartbeat over one low bass note per bar. */
@@ -1050,13 +998,6 @@ class Music {
     if (pos % 4 === 0) heartPulse(human(t, 10), 0.42, HIDING_BPM, bus);
   }
 
-  /** While hats are lifted: a heartbeat that races with each empty hat, under
-   *  the shimshal (see scheduleShimshal). */
-  private seeking(t: number, s: number) {
-    const lvl = this.intensity;
-    if (s % 4 === 0) heartPulse(human(t, 10), 0.42 + lvl * 0.025, seekBpm(lvl), this.bus!);
-  }
-
   stop(fade = 0.25) {
     mainTrack.pause(fade);
     if (this.timer) clearInterval(this.timer);
@@ -1064,8 +1005,6 @@ class Music {
     this.mode = null;
     const a = ctx;
     const bus = this.bus;
-    const flute = this.flute;
-    this.flute = null;
     this.bus = null;
     this.ducker = null;
     if (!a || !bus) return;
@@ -1073,7 +1012,6 @@ class Music {
     bus.gain.cancelScheduledValues(t);
     bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), t);
     bus.gain.exponentialRampToValueAtTime(0.0001, t + fade);
-    flute?.stop(t + fade);
     setTimeout(() => bus.disconnect(), (fade + 0.6) * 1000);
   }
 }
