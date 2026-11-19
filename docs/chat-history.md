@@ -153,3 +153,37 @@ Passwords, database connection strings and API keys have been removed.
 ### Saving to GitHub
 - **Request:** Save all files and chats to GitHub.
 - **Done:** Committed all changes and this chat history to `main` and pushed.
+
+## 2026-11-19
+
+### Is Kllawen working?
+- **Request:** Check whether https://mirangames.vercel.app/kllawen works 100%.
+- **Done:** Confirmed the live site runs the latest code, is connected to Supabase,
+  and the project type-checks. Played two full games against the live site in
+  headless Chrome (one host, four phones): joining, team picks, captain voting, the
+  toss question (closing early and timing out), hiding and hide votes (the seekers'
+  phones only ever receive them encrypted), scoring, auto-advance, a phone and the
+  host refreshing mid-round, the end of the game, «یاریی نوێ», screen-only mode and
+  the reset confirm. All 33 checks passed with no console errors. Not tested: real
+  phones, sound, weak Wi-Fi, more than 4 players, random teams.
+
+### Teams always visible in the TV lobby
+- **Request:** On the TV the lobby had to be scrolled to see who joined which team.
+  Add an expand button to the settings, and move the teams to the top.
+- **Done:** The teams card is now first, beside the QR code. The settings card below
+  it folds into one bar showing the current choices (control mode, team mode,
+  rounds, tries) with a «گۆڕین / داخستن» button. It starts folded, and each screen
+  remembers whether it was left open. Checked at 1920×1080, 1366×768 and 1280×720
+  with 6 players joined: the teams fit with no scrolling.
+
+### Main music track for Kllawen
+- **Done (changes found uncommitted in the working copy):** 🎵 now plays the main
+  track (`public/audio/bg-music.mp3`, at the same volume as Bingo and the quiz) in
+  every phase. It pauses briefly for a round's reveal and for the victory, then
+  carries on. With 🎵 off, 🔊 still plays the hiding and seeking cues. The
+  synthesised theme and thinking music were removed.
+
+### Saving to GitHub
+- **Request:** Push all chats and files to GitHub.
+- **Done:** Pulled the Supabase keep-alive workflow from GitHub, committed all
+  changes and this chat history to `main`, and pushed.
