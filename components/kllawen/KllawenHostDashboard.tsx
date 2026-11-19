@@ -145,21 +145,25 @@ export function KllawenHostDashboard({
     prevPhaseRef.current = phase;
   }, [phase, result, lifted.length, soundOn]);
 
-  // One music engine scores the page like a game show: with 🔊, suspense while
-  // the ring is hidden and sought; with 🎵, a thinking cue under the toss
-  // question and the theme everywhere else. Reveals get a moment of silence,
-  // then the theme comes back.
+  // One music engine scores the page. 🎵 plays the main track (bg-music.mp3)
+  // in every phase; it holds back for a moment at a round's reveal and at the
+  // victory so those are heard, then picks up where it stopped. With 🎵 off,
+  // 🔊 plays suspense cues while the ring is hidden and sought.
+  const musicPhaseRef = useRef({ phase, since: 0 });
   useEffect(() => {
-    if (soundOn && phase === "HIDING") { kllawenMusic.start("hiding"); return; }
-    if (soundOn && phase === "SEEKING") { kllawenMusic.start("seeking"); return; }
-    const reveal = phase === "ROUND_RESULT";
-    if (musicOn && phase === "TOSS_QUESTION") { kllawenMusic.start("think"); return; }
-    if (musicOn && !reveal && phase !== "ENDED") { kllawenMusic.start("theme"); return; }
-    kllawenMusic.stop(reveal ? 0.15 : 0.6);
-    if (musicOn && phase === "ROUND_RESULT") {
-      const id = setTimeout(() => kllawenMusic.start("theme"), 3500);
+    if (musicPhaseRef.current.phase !== phase) musicPhaseRef.current = { phase, since: Date.now() };
+    if (musicOn) {
+      // Counted from when the moment began, so turning 🎵 on later plays at once.
+      const holdMs = phase === "ROUND_RESULT" ? 3500 : phase === "ENDED" ? 8500 : 0;
+      const wait = holdMs - (Date.now() - musicPhaseRef.current.since);
+      if (wait <= 0) { kllawenMusic.start("main"); return; }
+      kllawenMusic.stop(0.15);
+      const id = setTimeout(() => kllawenMusic.start("main"), wait);
       return () => clearTimeout(id);
     }
+    if (soundOn && phase === "HIDING") { kllawenMusic.start("hiding"); return; }
+    if (soundOn && phase === "SEEKING") { kllawenMusic.start("seeking"); return; }
+    kllawenMusic.stop(phase === "ROUND_RESULT" ? 0.15 : 0.6);
   }, [phase, soundOn, musicOn]);
   useEffect(() => kllawenMusic.setIntensity(lifted.length), [lifted.length]);
   useEffect(() => { warmUpKllawenAudio(); return () => kllawenMusic.stop(); }, []);

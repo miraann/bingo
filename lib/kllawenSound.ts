@@ -1,6 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   کڵاوێن sound engine — Kurdish-style, fully synthesised with Web Audio (no
-   assets, and every sound can react to the game).
+   کڵاوێن sound engine — Kurdish-style, synthesised with Web Audio so every
+   sound can react to the game (only the ring tone and the main music are
+   recordings).
 
    Instruments
      دهۆڵ   dahol    — big double-headed drum: deep mallet "dum", thin-stick "tek"
@@ -19,10 +20,10 @@
    • playKurdishVictory — a short govend burst for the end of the game
    • playCountdownTick / playCountdownGo — the intro countdown: a ring note
                        per second that climbs and gathers drums, then a hit
-   • kllawenMusic    — game-show challenge music for the whole page: a theme
-                       between rounds, a thinking cue under the toss question,
-                       a heartbeat cue while the ring is hidden, and a
-                       shimshal over a racing heartbeat while seeking
+   • kllawenMusic    — the page's music: the main track (public/audio/
+                       bg-music.mp3) on 🎵; with 🎵 off, a heartbeat cue while
+                       the ring is hidden and a shimshal over a racing
+                       heartbeat while seeking
 ───────────────────────────────────────────────────────────────────────────── */
 "use client";
 
@@ -712,7 +713,7 @@ export function playKurdishVictory() {
 
 /* ── Adaptive music ──────────────────────────────────────────────────── */
 
-export type MusicMode = "theme" | "think" | "hiding" | "seeking";
+export type MusicMode = "main" | "hiding" | "seeking";
 
 /** Melody events, one per eighth note: scale step, null = rest, "~" = hold. */
 type Ev = number | null | "~";
@@ -776,83 +777,19 @@ function playDahol(t: number, pos: number, lvl: number, dest?: AudioNode) {
 const LOOKAHEAD = 0.35;
 const SCHEDULE_EVERY_MS = 50;
 
-/* ── Challenge music ─────────────────────────────────────────────────────
-   One engine scores the whole page like a TV game show, in D minor:
-     theme   — between rounds (🎵): pumping bass, an arpeggio bouncing through
-               a stereo echo, lush pads, a bell hook and a beat
-     think   — under the toss question (🎵): ticking clock, pulsing bass, pads
-     hiding  — while the ring is hidden (🔊): a slow heartbeat over a low
-               bass note
-     seeking — while hats are lifted (🔊): a shimshal lawik in the background
-               over heartbeat pulses that race with every empty hat
-   The tones are stacks of slightly detuned voices spread across the stereo
-   field, warmed by filters, breathing with the beat and placed in a hall with
-   a ping-pong echo — rich rather than buzzy. */
+/* ── Page music ──────────────────────────────────────────────────────────
+   One engine scores the whole page:
+     main    — 🎵: the main track (public/audio/bg-music.mp3), the same one
+               Bingo and the quiz play
+     hiding  — while the ring is hidden (🔊, 🎵 off): a slow heartbeat over
+               a low bass note
+     seeking — while hats are lifted (🔊, 🎵 off): a shimshal lawik in the
+               background over heartbeat pulses that race with every empty hat */
 
 /** A few milliseconds of human timing. */
 const human = (t: number, ms = 9) => t + Math.random() * ms / 1000;
 
 const midi = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
-
-function burst(t: number, type: BiquadFilterType, freq: number, q: number, vol: number, dur: number, bus: AudioNode) {
-  const a = audio()!;
-  const src = noise(t, dur + 0.02);
-  const f = a.ctx.createBiquadFilter();
-  f.type = type; f.frequency.value = freq; f.Q.value = q;
-  const g = a.ctx.createGain();
-  g.gain.setValueAtTime(vol, t);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(f); f.connect(g); g.connect(bus);
-}
-
-function panned(c: AudioContext, pan: number, dest: AudioNode): AudioNode {
-  if (typeof c.createStereoPanner !== "function") return dest;
-  const p = c.createStereoPanner();
-  p.pan.value = pan;
-  p.connect(dest);
-  return p;
-}
-
-let hallIR: AudioBuffer | null = null;
-/** A long, dark hall (3.4 s). */
-function hallReverb(c: AudioContext) {
-  if (!hallIR) {
-    const len = Math.floor(c.sampleRate * 3.4);
-    const pre = Math.floor(c.sampleRate * 0.02);
-    hallIR = c.createBuffer(2, len, c.sampleRate);
-    for (let ch = 0; ch < 2; ch++) {
-      const d = hallIR.getChannelData(ch);
-      let lp = 0;
-      for (let i = pre; i < len; i++) {
-        const x = (i - pre) / (len - pre);
-        const k = 0.15 + 0.8 * x; // the tail gets darker as it decays
-        lp += (1 - k) * ((Math.random() * 2 - 1) - lp);
-        d[i] = lp * Math.exp(-4.2 * x) * (1 + 2 * k);
-      }
-    }
-  }
-  const conv = c.createConvolver();
-  conv.buffer = hallIR;
-  return conv;
-}
-
-interface Echo { input: GainNode; left: DelayNode; right: DelayNode; nodes: AudioNode[] }
-/** Ping-pong echo: repeats bounce left and right and darken as they fade. */
-function pingPong(c: AudioContext, time: number, feedback: number, wet: number, dest: AudioNode): Echo {
-  const input = c.createGain();
-  const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 280;
-  const tone = c.createBiquadFilter(); tone.type = "lowpass"; tone.frequency.value = 3200;
-  const left = c.createDelay(2), right = c.createDelay(2);
-  left.delayTime.value = time; right.delayTime.value = time;
-  const fb = c.createGain(); fb.gain.value = feedback;
-  const merger = c.createChannelMerger(2);
-  const outG = c.createGain(); outG.gain.value = wet;
-  input.connect(hp); hp.connect(tone); tone.connect(left);
-  left.connect(merger, 0, 0); left.connect(right);
-  right.connect(merger, 0, 1); right.connect(fb); fb.connect(left);
-  merger.connect(outG); outG.connect(dest);
-  return { input, left, right, nodes: [input, hp, tone, left, right, fb, merger, outG] };
-}
 
 let driveCurve: Float32Array<ArrayBuffer> | null = null;
 /** Warm saturation into a gentle lowpass. Gives deep sounds harmonics, so TV
@@ -870,96 +807,6 @@ function drive(c: AudioContext, dest: AudioNode, vol: number) {
   g.gain.value = vol;
   shaper.connect(tone); tone.connect(g); g.connect(dest);
   return shaper;
-}
-
-/* ── Instruments ──────────────────────────────────────────────────────── */
-
-/** Lush pad: every chord tone is three detuned saws spread left–centre–right,
- *  under a lowpass that slowly opens. A long release overlaps the next chord. */
-function pad(t: number, notes: number[], dur: number, vol: number, dest: AudioNode, bright = 1) {
-  const a = audio(); if (!a) return;
-  const c = a.ctx;
-  const lp = c.createBiquadFilter();
-  lp.type = "lowpass"; lp.Q.value = 0.5;
-  lp.frequency.setValueAtTime(650 * bright, t);
-  lp.frequency.linearRampToValueAtTime(2000 * bright, t + Math.min(1.2, dur * 0.5));
-  lp.frequency.linearRampToValueAtTime(900 * bright, t + dur + 1);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(vol, t + Math.min(0.45, dur * 0.3));
-  g.gain.setValueAtTime(vol, t + dur);
-  g.gain.linearRampToValueAtTime(0, t + dur + 1);
-  lp.connect(g); g.connect(dest);
-  const per = 0.6 / Math.sqrt(notes.length * 3);
-  // One shared gain + panner per side (left, centre, right) keeps the graph light.
-  const sides = ([[-12, -0.7], [0, 0], [12, 0.7]] as const).map(([cents, pan]) => {
-    const g = c.createGain(); g.gain.value = per;
-    g.connect(panned(c, pan, lp));
-    return { cents, g };
-  });
-  for (const m of notes) {
-    for (const { cents, g: side } of sides) {
-      const o = c.createOscillator();
-      o.type = "sawtooth";
-      o.frequency.value = midi(m);
-      o.detune.value = cents + (Math.random() - 0.5) * 4;
-      o.connect(side);
-      o.start(t); o.stop(t + dur + 1.05);
-    }
-  }
-}
-
-/** Bright synth pluck (saw + square, resonant filter snapping shut). */
-function pluck(t: number, m: number, vol: number, dest: AudioNode, echo: AudioNode | null, pan = 0, bright = 1) {
-  const a = audio(); if (!a) return;
-  const c = a.ctx;
-  const f = midi(m);
-  const lp = c.createBiquadFilter();
-  lp.type = "lowpass"; lp.Q.value = 5;
-  lp.frequency.setValueAtTime(Math.min(12000, f * 10 * bright), t);
-  lp.frequency.exponentialRampToValueAtTime(Math.max(200, f * 1.2), t + 0.22);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol, t + 0.004);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
-  lp.connect(g);
-  g.connect(panned(c, pan, dest));
-  if (echo) g.connect(echo);
-  for (const [type, det, level] of [["sawtooth", -7, 0.5], ["square", 7, 0.35]] as const) {
-    const o = c.createOscillator();
-    o.type = type; o.frequency.value = f; o.detune.value = det;
-    const og = c.createGain(); og.gain.value = level;
-    o.connect(og); og.connect(lp);
-    o.start(t); o.stop(t + 0.42);
-  }
-}
-
-/** FM bell (celesta-like): bright strike that mellows as it rings. */
-function fmBell(t: number, m: number, vol: number, dest: AudioNode, echo: AudioNode | null) {
-  const a = audio(); if (!a) return;
-  const c = a.ctx;
-  const f = midi(m);
-  const car = c.createOscillator(); car.frequency.value = f;
-  const mod = c.createOscillator(); mod.frequency.value = f * 3.5;
-  const idx = c.createGain();
-  idx.gain.setValueAtTime(f * 2.2, t);
-  idx.gain.exponentialRampToValueAtTime(f * 0.15, t + 1.2);
-  mod.connect(idx); idx.connect(car.frequency);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol, t + 0.003);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
-  car.connect(g);
-  // A warm body under the strike.
-  const body = c.createOscillator(); body.type = "triangle"; body.frequency.value = f;
-  const bg = c.createGain();
-  bg.gain.setValueAtTime(0.0001, t);
-  bg.gain.exponentialRampToValueAtTime(vol * 0.35, t + 0.01);
-  bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
-  body.connect(bg); bg.connect(g);
-  g.connect(dest);
-  if (echo) g.connect(echo);
-  for (const o of [car, mod, body]) { o.start(t); o.stop(t + 2.3); }
 }
 
 /** Warm bass: sine body + filtered saw, gently saturated. */
@@ -985,39 +832,6 @@ function bassNote(t: number, m: number, dur: number, vol: number, dest: AudioNod
   const wg = c.createGain(); wg.gain.value = 0.45;
   saw.connect(wg); wg.connect(lp);
   for (const o of [sine, saw]) { o.start(t); o.stop(t + dur + 0.1); }
-}
-
-function kick(t: number, vol: number, dest: AudioNode) {
-  const a = audio(); if (!a) return;
-  const c = a.ctx;
-  const input = drive(c, dest, vol);
-  const o = c.createOscillator();
-  o.type = "sine";
-  o.frequency.setValueAtTime(160, t);
-  o.frequency.exponentialRampToValueAtTime(48, t + 0.11);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(1, t + 0.002);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
-  o.connect(g); g.connect(input);
-  o.start(t); o.stop(t + 0.45);
-  burst(t, "highpass", 2500, 0.7, 0.35, 0.01, input);
-}
-
-function clap(t: number, vol: number, dest: AudioNode, hall: AudioNode) {
-  const a = audio(); if (!a) return;
-  const c = a.ctx;
-  const g = c.createGain();
-  g.connect(dest);
-  const send = c.createGain(); send.gain.value = 0.6;
-  g.connect(send); send.connect(hall);
-  for (const d of [0, 0.011, 0.022]) burst(t + d, "bandpass", 1250, 1.1, vol, 0.018, g);
-  burst(t + 0.03, "bandpass", 1400, 0.9, vol * 0.7, 0.16, g);
-}
-
-function hat(t: number, vol: number, open: boolean, dest: AudioNode) {
-  const a = audio(); if (!a) return;
-  burst(t, "highpass", 7500, 0.8, vol, open ? 0.2 : 0.04, panned(a.ctx, 0.25, dest));
 }
 
 /** One heart sound: a sub drop plus the fleshy thud of the chest. */
@@ -1052,83 +866,89 @@ function heartPulse(t: number, vol: number, bpm: number, dest: AudioNode) {
   heartSound(t + gap, vol * 0.7, 1.2, dest);
 }
 
-/** A mechanical clock: escapement click, wooden case knock, a tiny metal ring. */
-function clockTick(t: number, vol: number, tock: boolean, dest: AudioNode) {
-  const a = audio(); if (!a) return;
-  const bus = panned(a.ctx, tock ? 0.2 : -0.2, dest);
-  burst(t, "highpass", 4200, 0.7, vol * 0.7, 0.006, bus);
-  burst(t, "bandpass", tock ? 1150 : 1550, 3, vol * 2.2, 0.03, bus);
-  (tock ? [1870, 3120] : [2350, 3890]).forEach((f, i) => {
-    const o = a.ctx.createOscillator();
-    o.type = "sine"; o.frequency.value = f * (0.99 + Math.random() * 0.02);
-    const d = 0.045 - i * 0.01;
-    const g = a.ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol * 0.22, t + 0.001);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-    o.connect(g); g.connect(bus);
-    o.start(t); o.stop(t + d + 0.01);
-  });
-}
-
-/** A filtered-noise swell that builds into the next downbeat. */
-function riser(t: number, dur: number, vol: number, dest: AudioNode, hall: AudioNode) {
-  const a = audio(); if (!a) return;
-  const src = noise(t, dur + 0.06);
-  const bp = a.ctx.createBiquadFilter();
-  bp.type = "bandpass"; bp.Q.value = 1.6;
-  bp.frequency.setValueAtTime(250, t);
-  bp.frequency.exponentialRampToValueAtTime(5200, t + dur);
-  const g = a.ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol, t + dur);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
-  src.connect(bp); bp.connect(g); g.connect(dest);
-  const send = a.ctx.createGain(); send.gain.value = 0.5;
-  g.connect(send); send.connect(hall);
-}
-
-/* ── Harmony (D minor) ────────────────────────────────────────────────── */
-
-interface Chord { pad: number[]; arp: number[]; bass: number }
-const CHORDS = {
-  Dm: { pad: [50, 57, 62, 65, 69, 76], arp: [62, 65, 69, 74], bass: 38 }, // Dm(add9)
-  Bb: { pad: [46, 53, 62, 65, 69], arp: [62, 65, 70, 74], bass: 34 },     // B♭maj7
-  F:  { pad: [53, 60, 65, 67, 69], arp: [60, 65, 69, 72], bass: 41 },     // F(add9)
-  C:  { pad: [48, 55, 64, 67, 69], arp: [60, 64, 67, 72], bass: 36 },     // C6/9
-  Gm: { pad: [50, 55, 58, 65, 69], arp: [62, 67, 70, 74], bass: 43 },     // Gm9
-  A:  { pad: [52, 57, 61, 64, 67], arp: [61, 64, 67, 73], bass: 33 },     // A7
-} satisfies Record<string, Chord>;
-type ChordName = keyof typeof CHORDS;
-
-const THEME_CHORDS: ChordName[] = ["Dm", "Bb", "F", "C", "Dm", "Bb", "Gm", "A"];
-/** The bell hook, one event per eighth note over the 8 theme bars (null = rest). */
-const THEME_HOOK: (number | null)[] = [
-  69, null, 74, null, 77, null, 76, 74,
-  77, null, null, null, 74, null, 70, null,
-  72, null, 77, null, 81, null, 79, 77,
-  79, null, null, null, 76, null, 72, null,
-  69, null, 74, null, 77, null, 76, 74,
-  77, null, 81, null, 79, null, 77, null,
-  74, null, null, 77, null, null, 74, 70,
-  73, null, null, null, 76, null, 73, null,
-];
-/** i – i – VI – V: the question hangs on the dominant. */
-const TENSION_CHORDS: ChordName[] = ["Dm", "Dm", "Bb", "A"];
-const HIDE_CHORDS: ChordName[] = ["Dm", "Bb", "Gm", "A"];
-const ARP_CELL = [0, 2, 1, 3];
-
-const MUSIC_BPM = { theme: 112, think: 100, hiding: 72 };
+/** Bass under the hiding cue, one note per bar: D – B♭ – G – A. */
+const HIDE_BASS = [38, 34, 43, 33];
+const HIDING_BPM = 72;
 /** Heart rate of the seeking cue: already quick at the first hat, racing at the last. */
 const seekBpm = (lvl: number) => 84 + lvl * 10;
+
+/* ── Main track (public/audio/bg-music.mp3) ── */
+const MAIN_URL = "/audio/bg-music.mp3";
+const MAIN_VOLUME = 0.35; // same as Bingo and the quiz
+
+/** Streams from an <audio> element, so a TV doesn't have to decode 4 MB up
+ *  front. It pauses in place when a cue or a reveal takes over and picks up
+ *  from there, and dips under the sound effects like the rest of the music. */
+class MainTrack {
+  private el: HTMLAudioElement | null = null;
+  private on = false;
+  private fader: ReturnType<typeof setInterval> | null = null;
+  private unduck: ReturnType<typeof setTimeout> | null = null;
+
+  play(fadeIn = 1) {
+    if (typeof Audio === "undefined") return;
+    if (!this.el) {
+      this.el = new Audio(MAIN_URL);
+      this.el.loop = true;
+    }
+    const el = this.el;
+    this.on = true;
+    this.clearDuck();
+    if (el.paused) {
+      el.volume = 0;
+      el.play().catch(() => {});
+    }
+    this.fade(MAIN_VOLUME, fadeIn);
+  }
+
+  pause(fadeOut = 0.4) {
+    const el = this.el;
+    if (!el || !this.on) return;
+    this.on = false;
+    this.clearDuck();
+    this.fade(0, fadeOut, () => { if (!this.on) el.pause(); });
+  }
+
+  /** Dips to `depth` at once, then comes back over the second half of `seconds`. */
+  duck(seconds: number, depth: number) {
+    if (!this.on) return;
+    this.clearDuck();
+    this.fade(MAIN_VOLUME * depth, 0.03);
+    this.unduck = setTimeout(() => {
+      this.unduck = null;
+      if (this.on) this.fade(MAIN_VOLUME, seconds * 0.5);
+    }, seconds * 500);
+  }
+
+  private clearDuck() {
+    if (this.unduck) clearTimeout(this.unduck);
+    this.unduck = null;
+  }
+
+  /** Glides the volume to `to` over `seconds`, then calls `done`. */
+  private fade(to: number, seconds: number, done?: () => void) {
+    const el = this.el; if (!el) return;
+    if (this.fader) clearInterval(this.fader);
+    const from = el.volume, t0 = Date.now(), ms = seconds * 1000;
+    const step = () => {
+      const k = ms > 0 ? Math.min(1, (Date.now() - t0) / ms) : 1;
+      el.volume = Math.min(1, Math.max(0, from + (to - from) * k));
+      if (k < 1) return;
+      if (this.fader) clearInterval(this.fader);
+      this.fader = null;
+      done?.();
+    };
+    this.fader = setInterval(step, 30);
+    step();
+  }
+}
+
+const mainTrack = new MainTrack();
 
 class Music {
   private mode: MusicMode | null = null;
   private intensity = 0;
   private bus: GainNode | null = null;
-  private padBus: GainNode | null = null;
-  private hall: GainNode | null = null;
-  private echo: Echo | null = null;
   private flute: Shimshal | null = null;
   private fluteNext = 0;
   private fluteStep = 0;
@@ -1138,35 +958,20 @@ class Music {
   private step = 0;
 
   start(mode: MusicMode) {
-    const a = audio(); if (!a) return;
     if (this.mode === mode) return;
     this.stop(0.4);
     this.mode = mode;
     this.step = 0;
-    const c = a.ctx, t = c.currentTime;
+    if (mode === "main") { mainTrack.play(); return; }
 
+    const a = audio(); if (!a) return;
+    const c = a.ctx, t = c.currentTime;
     this.bus = c.createGain();
     this.bus.gain.setValueAtTime(0.0001, t);
-    // The cues under the game (hiding, seeking) sit a little lower than the theme.
-    this.bus.gain.exponentialRampToValueAtTime(mode === "theme" || mode === "think" ? 0.85 : mode === "hiding" ? 0.7 : 0.62, t + 1);
+    this.bus.gain.exponentialRampToValueAtTime(mode === "hiding" ? 0.7 : 0.62, t + 1);
     this.ducker = c.createGain();
     this.bus.connect(this.ducker);
     this.ducker.connect(a.master);
-
-    const hall = c.createGain();
-    const hallOut = c.createGain(); hallOut.gain.value = 0.5;
-    const conv = hallReverb(c);
-    hall.connect(conv); conv.connect(hallOut); hallOut.connect(this.bus);
-    this.hall = hall;
-
-    // Pads go through their own bus so they can breathe with the kick / heartbeat.
-    this.padBus = c.createGain();
-    this.padBus.connect(this.bus);
-    const padSend = c.createGain(); padSend.gain.value = 0.55;
-    this.padBus.connect(padSend); padSend.connect(hall);
-
-    // Dotted-eighth echo for the arpeggios and bells.
-    this.echo = pingPong(c, this.beat() * 0.75, 0.38, 0.32, this.bus);
 
     this.nextTime = t + 0.12;
     this.fluteNext = t + 0.3;
@@ -1177,6 +982,7 @@ class Music {
 
   /** Dips the music for a moment so a sound effect is heard clearly over it. */
   duckUnder(seconds = 0.7, depth = 0.4) {
+    if (this.mode === "main") { mainTrack.duck(seconds, depth); return; }
     const g = this.ducker?.gain; if (!g || !ctx) return;
     const t = ctx.currentTime;
     g.cancelScheduledValues(t);
@@ -1186,31 +992,14 @@ class Music {
     g.linearRampToValueAtTime(1, t + seconds);
   }
 
-  /** 0..9 — empty hats so far. Raises the heart rate and the tension. */
+  /** 0..9 — empty hats so far. Raises the heart rate of the seeking cue. */
   setIntensity(n: number) {
     this.intensity = Math.max(0, Math.min(9, n));
-    if (this.mode === "seeking" && this.echo && ctx) {
-      const d = this.beat() * 0.75;
-      this.echo.left.delayTime.setTargetAtTime(d, ctx.currentTime, 0.4);
-      this.echo.right.delayTime.setTargetAtTime(d, ctx.currentTime, 0.4);
-    }
   }
 
-  private bpm() {
-    if (this.mode === "seeking") return seekBpm(this.intensity);
-    return MUSIC_BPM[this.mode ?? "theme"];
-  }
-  private beat() { return 60 / this.bpm(); }
-  private sixteenth() { return this.beat() / 4; }
-
-  /** The pads dip on each kick / heartbeat, so the music breathes with the pulse.
-   *  Anchored linear ramps: each dip is self-contained (chained setTargetAtTime
-   *  calls blew up in testing). */
-  private pump(t: number, depth = 0.5) {
-    const g = this.padBus?.gain; if (!g) return;
-    g.setValueAtTime(1, t);
-    g.linearRampToValueAtTime(depth, t + 0.012);
-    g.linearRampToValueAtTime(1, t + 0.22);
+  private sixteenth() {
+    const bpm = this.mode === "seeking" ? seekBpm(this.intensity) : HIDING_BPM;
+    return 60 / bpm / 4;
   }
 
   private schedule() {
@@ -1249,68 +1038,16 @@ class Music {
   }
 
   private playStep(t: number, s: number) {
-    if (this.mode === "theme") this.theme(t, s);
-    else if (this.mode === "think") this.think(t, s);
-    else if (this.mode === "hiding") this.hiding(t, s);
+    if (this.mode === "hiding") this.hiding(t, s);
     else if (this.mode === "seeking") this.seeking(t, s);
-  }
-
-  /** Between rounds: the show's theme. Two bars build up, then the beat drops. */
-  private theme(t: number, s: number) {
-    const bus = this.bus!, hall = this.hall!, echo = this.echo!.input;
-    const pos = s % 16, bar = Math.floor(s / 16);
-    const ch = CHORDS[THEME_CHORDS[bar % 8]];
-    const barLen = this.sixteenth() * 16;
-    const intro = bar < 2;
-
-    if (pos === 0) pad(t, ch.pad, barLen, 0.2, this.padBus!, 1);
-    if (bar === 1 && pos === 0) riser(t, barLen, 0.07, bus, hall);
-
-    // Arpeggio on every sixteenth, bouncing left–right into the echo.
-    const up = pos >= 12 && bar % 2 === 1 ? 12 : 0;
-    pluck(t, ch.arp[ARP_CELL[pos % 4]] + up, pos % 4 === 0 ? 0.09 : 0.065, bus, echo, pos % 2 ? 0.3 : -0.3);
-    if (intro) return;
-
-    // Driving eighth-note bass with an octave pop at the end of the bar.
-    if (pos % 2 === 0) bassNote(t, ch.bass + (pos === 14 ? 12 : 0), this.sixteenth() * 1.7, pos % 4 === 0 ? 0.17 : 0.13, bus);
-
-    // Beat: kick 1 & 3 (plus a push in every other bar), clap 2 & 4, offbeat hats.
-    if (pos === 0 || pos === 8 || (pos === 10 && bar % 2 === 1)) { kick(t, 0.5, bus); this.pump(t); }
-    if (pos === 4 || pos === 12) clap(human(t, 4), 0.7, bus, hall);
-    if (pos % 4 === 2) hat(t, 0.06, pos === 14 && bar % 4 === 3, bus);
-    else if (bar >= 10 && pos % 2 === 1) hat(t, 0.022, false, bus);
-
-    // Bell hook on eighths.
-    if (pos % 2 === 0) {
-      const m = THEME_HOOK[(bar % 8) * 8 + pos / 2];
-      if (m != null) fmBell(t, m, 0.075, bus, echo);
-    }
-  }
-
-  /** Under the toss question: a quiz-show "thinking" cue. */
-  private think(t: number, s: number) {
-    const bus = this.bus!, echo = this.echo!.input;
-    const pos = s % 16, bar = Math.floor(s / 16);
-    const ch = CHORDS[TENSION_CHORDS[bar % 4]];
-    if (pos === 0) {
-      pad(t, ch.pad, this.sixteenth() * 16, 0.16, this.padBus!, 0.8);
-      kick(t, 0.3, bus);
-      this.pump(t, 0.6);
-    }
-    if (pos % 2 === 0) {
-      clockTick(t, pos % 4 === 0 ? 0.16 : 0.12, pos % 4 === 2, bus);
-      bassNote(t, ch.bass, this.sixteenth() * 0.9, 0.14, bus);
-    }
-    if (pos % 4 === 2) pluck(t, ch.arp[ARP_CELL[(pos >> 2) % 4]] + 12, 0.045, bus, echo, pos % 8 === 2 ? -0.4 : 0.4);
-    hat(t, pos % 2 ? 0.016 : 0.028, false, bus);
   }
 
   /** While the ring is hidden: a slow heartbeat over one low bass note per bar. */
   private hiding(t: number, s: number) {
     const bus = this.bus!;
     const pos = s % 16, bar = Math.floor(s / 16);
-    if (pos === 0) bassNote(t, CHORDS[HIDE_CHORDS[bar % 4]].bass, this.sixteenth() * 16 * 0.95, 0.1, bus);
-    if (pos % 4 === 0) heartPulse(human(t, 10), 0.42, MUSIC_BPM.hiding, bus);
+    if (pos === 0) bassNote(t, HIDE_BASS[bar % 4], this.sixteenth() * 16 * 0.95, 0.1, bus);
+    if (pos % 4 === 0) heartPulse(human(t, 10), 0.42, HIDING_BPM, bus);
   }
 
   /** While hats are lifted: a heartbeat that races with each empty hat, under
@@ -1321,18 +1058,15 @@ class Music {
   }
 
   stop(fade = 0.25) {
+    mainTrack.pause(fade);
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.mode = null;
     const a = ctx;
     const bus = this.bus;
-    const echo = this.echo;
     const flute = this.flute;
     this.flute = null;
     this.bus = null;
-    this.padBus = null;
-    this.hall = null;
-    this.echo = null;
     this.ducker = null;
     if (!a || !bus) return;
     const t = a.currentTime;
@@ -1340,10 +1074,7 @@ class Music {
     bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), t);
     bus.gain.exponentialRampToValueAtTime(0.0001, t + fade);
     flute?.stop(t + fade);
-    setTimeout(() => {
-      bus.disconnect();
-      echo?.nodes.forEach(n => n.disconnect()); // break the echo's feedback loop
-    }, (fade + 0.6) * 1000);
+    setTimeout(() => bus.disconnect(), (fade + 0.6) * 1000);
   }
 }
 
