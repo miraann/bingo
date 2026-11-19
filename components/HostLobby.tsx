@@ -1,7 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Check, Play, Plus, Users } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, ChevronDown, Play, Plus, SlidersHorizontal, Users } from "lucide-react";
 import { QRPanel } from "@/components/QRPanel";
 import { GameModeToggle, type HostMode } from "@/components/GameModeSelector";
 
@@ -26,6 +27,8 @@ const ACCENTS: Record<LobbyAccent, {
   soft: string;
   softIcon: string;
   chip: string;
+  /** The fold button of a settings card, lit while its row is hovered. */
+  foldHover: string;
 }> = {
   amber: {
     glow: "bg-[radial-gradient(70rem_28rem_at_50%_-8%,rgba(245,158,11,0.12),transparent)]",
@@ -42,6 +45,7 @@ const ACCENTS: Record<LobbyAccent, {
     soft: "bg-amber-50/60 ring-amber-200/50",
     softIcon: "text-amber-700",
     chip: "text-amber-800 bg-amber-50 hover:bg-amber-100 ring-amber-200/70",
+    foldHover: "group-hover:bg-amber-50 group-hover:text-amber-800",
   },
   emerald: {
     glow: "bg-[radial-gradient(70rem_28rem_at_50%_-8%,rgba(16,185,129,0.12),transparent)]",
@@ -58,6 +62,7 @@ const ACCENTS: Record<LobbyAccent, {
     soft: "bg-emerald-50/60 ring-emerald-200/50",
     softIcon: "text-emerald-700",
     chip: "text-emerald-800 bg-emerald-50 hover:bg-emerald-100 ring-emerald-200/70",
+    foldHover: "group-hover:bg-emerald-50 group-hover:text-emerald-800",
   },
   purple: {
     glow: "bg-[radial-gradient(70rem_28rem_at_50%_-8%,rgba(147,51,234,0.10),transparent)]",
@@ -74,6 +79,7 @@ const ACCENTS: Record<LobbyAccent, {
     soft: "bg-purple-50/60 ring-purple-200/50",
     softIcon: "text-purple-700",
     chip: "text-purple-800 bg-purple-50 hover:bg-purple-100 ring-purple-200/70",
+    foldHover: "group-hover:bg-purple-50 group-hover:text-purple-800",
   },
 };
 
@@ -199,6 +205,105 @@ export function SectionLabel({ children, action }: { children: React.ReactNode; 
 
 export function Divider() {
   return <div className="h-px bg-stone-100" />;
+}
+
+/* ── Folding settings card ────────────────────────────────────────────────── */
+
+/** One current choice, shown on a folded settings card. */
+export function SettingChip({ accent, icon: Icon, children }: { accent: LobbyAccent; icon?: React.ElementType; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 ring-1 ring-stone-200/70 px-2.5 py-0.5 text-[11px] font-bold text-stone-600">
+      {Icon && <Icon size={12} strokeWidth={2.5} className={ACCENTS[accent].softIcon} />}
+      {children}
+    </span>
+  );
+}
+
+/** The lobby is up on the TV while players join, so its settings fold into one
+ *  line of `summary` chips and the players stay in view. It starts folded and
+ *  each screen remembers (under `storageKey`) whether it was left open. While
+ *  `forceOpen` (a choice still has to be made) it can't fold, and it stays open
+ *  once that choice is made so the rest can still be set. */
+export function FoldingSettingsCard({
+  accent,
+  storageKey,
+  summary,
+  forceOpen = false,
+  children,
+}: {
+  accent: LobbyAccent;
+  storageKey: string;
+  summary?: React.ReactNode;
+  forceOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const a = ACCENTS[accent];
+  const bodyId = useId();
+  const [open, setOpen] = useState(forceOpen);
+  useEffect(() => {
+    try { if (window.localStorage.getItem(storageKey) === "1") setOpen(true); } catch {}
+  }, [storageKey]);
+  useEffect(() => { if (forceOpen) setOpen(true); }, [forceOpen]);
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    try { window.localStorage.setItem(storageKey, next ? "1" : "0"); } catch {}
+  };
+
+  const heading = (
+    <>
+      <span className={`grid place-items-center w-10 h-10 rounded-xl shrink-0 ring-1 ${a.soft} ${a.softIcon}`}>
+        <SlidersHorizontal size={18} strokeWidth={2.25} />
+      </span>
+      <span className="flex flex-col gap-1.5 flex-1 min-w-0">
+        <span className="text-sm font-black text-stone-800">ڕێکخستنەکان</span>
+        {summary && <span className="flex flex-wrap gap-1.5">{summary}</span>}
+      </span>
+    </>
+  );
+
+  return (
+    <LobbyCard className="flex flex-col">
+      {forceOpen ? (
+        <div className="flex items-center gap-3">{heading}</div>
+      ) : (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-controls={bodyId}
+          title={open ? "داخستنی ڕێکخستنەکان" : "کردنەوەی ڕێکخستنەکان"}
+          className="flex items-center gap-3 w-full text-start cursor-pointer group"
+        >
+          {heading}
+          <span className={`flex items-center gap-1 shrink-0 h-9 rounded-xl px-3 text-xs font-black bg-stone-100 text-stone-600 transition-colors ${a.foldHover}`}>
+            {open ? "داخستن" : "گۆڕین"}
+            <ChevronDown size={15} strokeWidth={2.75} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+          </span>
+        </button>
+      )}
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="settings"
+            id={bodyId}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            <div className="flex flex-col gap-5 pt-5">
+              <Divider />
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </LobbyCard>
+  );
 }
 
 /** Soft accent-tinted box for helper notes. */

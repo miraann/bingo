@@ -8,7 +8,7 @@ import { listQuizTopics } from "@/lib/quizLoader";
 import { useQuizHost, NEXT_QUESTION_LOADING_MS } from "@/hooks/useQuizHost";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useBroadcastHostMode } from "@/hooks/useHostMode";
-import { HostLobbyShell, LobbyCard, SectionLabel, Divider, OptionCard, NumberSegment, SwitchRow, StartButton } from "@/components/HostLobby";
+import { HostLobbyShell, FoldingSettingsCard, SettingChip, SectionLabel, Divider, OptionCard, NumberSegment, SwitchRow, StartButton } from "@/components/HostLobby";
 import { PlayerLobbyList } from "@/components/PlayerLobbyList";
 import { type HostMode } from "@/components/GameModeSelector";
 import { IconToggle } from "@/components/IconToggle";
@@ -139,7 +139,25 @@ export function QuizHostDashboard({
         mode={mode} onModeChange={onModeChange}
         gameId={gameId} joinUrl={joinUrl} onNewGame={handleNewGame}
       >
-        <LobbyCard className="flex flex-col gap-5">
+        <PlayerLobbyList players={players} />
+
+        {/* Folded to one line so the players stay on the TV; open until a topic is picked. */}
+        <FoldingSettingsCard
+          accent="emerald"
+          storageKey="quiz:lobbySettingsOpen"
+          forceOpen={!topicKey}
+          summary={topicKey && (
+            <>
+              <SettingChip accent="emerald" icon={TOPIC_ICONS[topicKey] ?? BookOpen}>
+                {topics.find(t => t.key === topicKey)?.label}
+              </SettingChip>
+              <SettingChip accent="emerald"><span className="tabular-nums">{questionCount}</span> پرسیار</SettingChip>
+              <SettingChip accent="emerald" icon={hintsEnabled ? Lightbulb : LightbulbOff}>
+                {hintsEnabled ? "یارمەتی" : "بێ یارمەتی"}
+              </SettingChip>
+            </>
+          )}
+        >
           <div>
             <SectionLabel>
               {topicKey ? "بابەت هەڵبژێردرا ✓" : "کرتە لەسەر بابەتێک بکە بۆ هەڵبژاردنی"}
@@ -194,9 +212,7 @@ export function QuizHostDashboard({
             checked={hintsEnabled}
             onChange={setHintsEnabled}
           />
-        </LobbyCard>
-
-        <PlayerLobbyList players={players} />
+        </FoldingSettingsCard>
 
         <StartButton
           accent="emerald"

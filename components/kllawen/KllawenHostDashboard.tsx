@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Music, Music2, Volume2, VolumeX, RotateCcw, Flag, Smartphone, Monitor, BookOpen, Shuffle, Crown, ArrowLeftRight, Dices, Hand, Users, Vote, ChevronDown, SlidersHorizontal } from "lucide-react";
+import { Music, Music2, Volume2, VolumeX, RotateCcw, Flag, Smartphone, Monitor, BookOpen, Shuffle, Crown, ArrowLeftRight, Dices, Hand, Users, Vote } from "lucide-react";
 import { getOrCreateHostGameId, createNewHostGameId } from "@/lib/id";
 import { useKllawenHost } from "@/hooks/useKllawenHost";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useBroadcastHostMode } from "@/hooks/useHostMode";
-import { HostLobbyShell, HeaderButton, LobbyCard, SectionLabel, Divider, OptionCard, NumberSegment, ChipButton, InfoNote, StartButton } from "@/components/HostLobby";
+import { HostLobbyShell, HeaderButton, LobbyCard, FoldingSettingsCard, SettingChip, SectionLabel, Divider, OptionCard, NumberSegment, ChipButton, InfoNote, StartButton } from "@/components/HostLobby";
 import { type HostMode } from "@/components/GameModeSelector";
 import { HatBoard } from "@/components/kllawen/HatRow";
 import { TeamScoreboard, TeamScoreCard } from "@/components/kllawen/TeamScoreboard";
@@ -57,19 +57,6 @@ function ToolButton({
 const isPresetRounds = (n: number) => (ROUND_PRESETS as readonly number[]).includes(n);
 const isPresetTries = (n: number) => (TRIES_PRESETS as readonly number[]).includes(n);
 
-/** Whether this screen keeps the lobby settings unfolded. */
-const SETTINGS_OPEN_KEY = "kllawen:lobbySettingsOpen";
-
-/** One current setting, shown on the folded settings card. */
-function SettingChip({ icon: Icon, children }: { icon?: React.ElementType; children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 ring-1 ring-stone-200/70 px-2.5 py-0.5 text-[11px] font-bold text-stone-600">
-      {Icon && <Icon size={12} strokeWidth={2.5} className="text-amber-700" />}
-      {children}
-    </span>
-  );
-}
-
 export function KllawenHostDashboard({
   mode,
   onModeChange,
@@ -118,17 +105,6 @@ export function KllawenHostDashboard({
   const closeConfirm = useCallback(() => setConfirm(null), []);
   useEffect(() => { if (phase === "LOBBY" || phase === "ENDED") setConfirm(null); }, [phase]);
   const [selectedHat, setSelectedHat] = useState<number | null>(null);
-  // The lobby is up on the TV while players join, so the settings fold into one
-  // line and the teams stay in view. Each screen remembers if it was left open.
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  useEffect(() => {
-    try { setSettingsOpen(window.localStorage.getItem(SETTINGS_OPEN_KEY) === "1"); } catch {}
-  }, []);
-  const toggleSettings = () => {
-    const next = !settingsOpen;
-    setSettingsOpen(next);
-    try { window.localStorage.setItem(SETTINGS_OPEN_KEY, next ? "1" : "0"); } catch {}
-  };
   // The custom field stays empty while a preset is picked, so the value isn't shown twice.
   const [roundsInput, setRoundsInput] = useState(isPresetRounds(totalRounds) ? "" : String(totalRounds));
   useEffect(() => {
@@ -342,127 +318,94 @@ export function KllawenHostDashboard({
           />
         </LobbyCard>
 
-        {/* ── Settings: folded to one line by default so the teams stay on screen ── */}
-        <LobbyCard className="flex flex-col">
-          <button
-            type="button"
-            onClick={toggleSettings}
-            aria-expanded={settingsOpen}
-            aria-controls="kl-lobby-settings"
-            title={settingsOpen ? "داخستنی ڕێکخستنەکان" : "کردنەوەی ڕێکخستنەکان"}
-            className="flex items-center gap-3 w-full text-start cursor-pointer group"
-          >
-            <span className="grid place-items-center w-10 h-10 rounded-xl shrink-0 bg-amber-50 text-amber-700 ring-1 ring-amber-200/70">
-              <SlidersHorizontal size={18} strokeWidth={2.25} />
+        {/* ── Settings: folded to one line so the teams stay on the TV ──── */}
+        <FoldingSettingsCard
+          accent="amber"
+          storageKey="kllawen:lobbySettingsOpen"
+          summary={
+            <>
+              <SettingChip accent="amber" icon={controlMode === "phones" ? Smartphone : Monitor}>
+                {controlMode === "phones" ? "مۆبایلی کاپتن" : "تەنها شاشە"}
+              </SettingChip>
+              <SettingChip accent="amber" icon={teamMode === "choose" ? Hand : Dices}>
+                {teamMode === "choose" ? "هەڵبژاردن" : "هەڕەمەکی"}
+              </SettingChip>
+              <SettingChip accent="amber"><span className="tabular-nums">{totalRounds}</span> گەڕ</SettingChip>
+              <SettingChip accent="amber"><span className="tabular-nums">{maxTries}</span> هەوڵ</SettingChip>
+            </>
+          }
+        >
+          <div>
+            <SectionLabel>شێوازی یاریکردن</SectionLabel>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <OptionCard
+                accent="amber"
+                selected={controlMode === "phones"} onClick={() => setControlMode("phones")}
+                icon={<Smartphone size={18} strokeWidth={2.25} />} label="مۆبایلی کاپتن"
+                hint="کاپتنەکان لە مۆبایلەوە دەشارنەوە و دەگەڕێن"
+              />
+              <OptionCard
+                accent="amber"
+                selected={controlMode === "screen"} onClick={() => setControlMode("screen")}
+                icon={<Monitor size={18} strokeWidth={2.25} />} label="تەنها شاشە"
+                hint="کاپتن لە مۆبایل دەیشارێتەوە، گەڕان لەسەر ئەم شاشەیە"
+              />
+            </div>
+          </div>
+
+          <Divider />
+
+          <div>
+            <SectionLabel>دابەشکردنی تیپەکان</SectionLabel>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <OptionCard
+                accent="amber"
+                selected={teamMode === "choose"} onClick={() => setTeamMode("choose")}
+                icon={<Hand size={18} strokeWidth={2.25} />} label="هەڵبژاردن"
+                hint="هەر یاریزانێک تیپی خۆی هەڵدەبژێرێت"
+              />
+              <OptionCard
+                accent="amber"
+                selected={teamMode === "random"} onClick={() => setTeamMode("random")}
+                icon={<Dices size={18} strokeWidth={2.25} />} label="هەڕەمەکی"
+                hint="یاریزانان بە هەڕەمەکی دابەش دەکرێن"
+              />
+            </div>
+          </div>
+
+          <Divider />
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs font-black text-stone-500">ژمارەی گەڕەکان</span>
+            <NumberSegment
+              accent="amber"
+              presets={ROUND_PRESETS}
+              value={totalRounds}
+              onSelect={setTotalRounds}
+              inputValue={roundsInput}
+              onInput={handleRoundsInput}
+              min={1} max={MAX_ROUNDS}
+              label="ژمارەی گەڕەکان"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="flex flex-col gap-0.5">
+              <span className="text-xs font-black text-stone-500">هەوڵەکانی دۆزینەوە</span>
+              <span className="text-[11px] font-bold text-stone-400">چەند جار تیپی دۆزەرەوە دەتوانێت گوڵی هەڵە بکات لە هەر گەڕێکدا — پوچ لەسەر ئەنگوستیلە هەمیشە گەڕەکە کۆتایی پێدەهێنێت</span>
             </span>
-            <span className="flex flex-col gap-1.5 flex-1 min-w-0">
-              <span className="text-sm font-black text-stone-800">ڕێکخستنەکان</span>
-              <span className="flex flex-wrap gap-1.5">
-                <SettingChip icon={controlMode === "phones" ? Smartphone : Monitor}>
-                  {controlMode === "phones" ? "مۆبایلی کاپتن" : "تەنها شاشە"}
-                </SettingChip>
-                <SettingChip icon={teamMode === "choose" ? Hand : Dices}>
-                  {teamMode === "choose" ? "هەڵبژاردن" : "هەڕەمەکی"}
-                </SettingChip>
-                <SettingChip><span className="tabular-nums">{totalRounds}</span> گەڕ</SettingChip>
-                <SettingChip><span className="tabular-nums">{maxTries}</span> هەوڵ</SettingChip>
-              </span>
-            </span>
-            <span className="flex items-center gap-1 shrink-0 h-9 rounded-xl px-3 text-xs font-black bg-stone-100 text-stone-600 group-hover:bg-amber-50 group-hover:text-amber-800 transition-colors">
-              {settingsOpen ? "داخستن" : "گۆڕین"}
-              <ChevronDown size={15} strokeWidth={2.75} className={`transition-transform duration-200 ${settingsOpen ? "rotate-180" : ""}`} />
-            </span>
-          </button>
-
-          <AnimatePresence initial={false}>
-            {settingsOpen && (
-              <motion.div
-                key="settings"
-                id="kl-lobby-settings"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
-                className="overflow-hidden"
-              >
-                <div className="flex flex-col gap-5 pt-5">
-                  <Divider />
-
-                  <div>
-                    <SectionLabel>شێوازی یاریکردن</SectionLabel>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <OptionCard
-                        accent="amber"
-                        selected={controlMode === "phones"} onClick={() => setControlMode("phones")}
-                        icon={<Smartphone size={18} strokeWidth={2.25} />} label="مۆبایلی کاپتن"
-                        hint="کاپتنەکان لە مۆبایلەوە دەشارنەوە و دەگەڕێن"
-                      />
-                      <OptionCard
-                        accent="amber"
-                        selected={controlMode === "screen"} onClick={() => setControlMode("screen")}
-                        icon={<Monitor size={18} strokeWidth={2.25} />} label="تەنها شاشە"
-                        hint="کاپتن لە مۆبایل دەیشارێتەوە، گەڕان لەسەر ئەم شاشەیە"
-                      />
-                    </div>
-                  </div>
-
-                  <Divider />
-
-                  <div>
-                    <SectionLabel>دابەشکردنی تیپەکان</SectionLabel>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <OptionCard
-                        accent="amber"
-                        selected={teamMode === "choose"} onClick={() => setTeamMode("choose")}
-                        icon={<Hand size={18} strokeWidth={2.25} />} label="هەڵبژاردن"
-                        hint="هەر یاریزانێک تیپی خۆی هەڵدەبژێرێت"
-                      />
-                      <OptionCard
-                        accent="amber"
-                        selected={teamMode === "random"} onClick={() => setTeamMode("random")}
-                        icon={<Dices size={18} strokeWidth={2.25} />} label="هەڕەمەکی"
-                        hint="یاریزانان بە هەڕەمەکی دابەش دەکرێن"
-                      />
-                    </div>
-                  </div>
-
-                  <Divider />
-
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-xs font-black text-stone-500">ژمارەی گەڕەکان</span>
-                    <NumberSegment
-                      accent="amber"
-                      presets={ROUND_PRESETS}
-                      value={totalRounds}
-                      onSelect={setTotalRounds}
-                      inputValue={roundsInput}
-                      onInput={handleRoundsInput}
-                      min={1} max={MAX_ROUNDS}
-                      label="ژمارەی گەڕەکان"
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="flex flex-col gap-0.5">
-                      <span className="text-xs font-black text-stone-500">هەوڵەکانی دۆزینەوە</span>
-                      <span className="text-[11px] font-bold text-stone-400">چەند جار تیپی دۆزەرەوە دەتوانێت گوڵی هەڵە بکات لە هەر گەڕێکدا — پوچ لەسەر ئەنگوستیلە هەمیشە گەڕەکە کۆتایی پێدەهێنێت</span>
-                    </span>
-                    <NumberSegment
-                      accent="amber"
-                      presets={TRIES_PRESETS}
-                      value={maxTries}
-                      onSelect={setMaxTries}
-                      inputValue={triesInput}
-                      onInput={handleTriesInput}
-                      min={1} max={MAX_TRIES}
-                      label="هەوڵەکانی دۆزینەوە"
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </LobbyCard>
+            <NumberSegment
+              accent="amber"
+              presets={TRIES_PRESETS}
+              value={maxTries}
+              onSelect={setMaxTries}
+              inputValue={triesInput}
+              onInput={handleTriesInput}
+              min={1} max={MAX_TRIES}
+              label="هەوڵەکانی دۆزینەوە"
+            />
+          </div>
+        </FoldingSettingsCard>
 
         <StartButton
           accent="amber"
